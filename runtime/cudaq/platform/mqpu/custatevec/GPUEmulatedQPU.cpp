@@ -54,7 +54,7 @@ public:
     if (noiseModel)
       contexts[tid]->noiseModel = noiseModel;
 
-    cudaq::getExecutionManager()->setExecutionContext(contexts[tid]);
+    cudaq::get_execution_manager().setExecutionContext(contexts[tid]);
   }
 
   /// Overrides resetExecutionContext to forward to
@@ -64,7 +64,7 @@ public:
     auto tid = std::hash<std::thread::id>{}(std::this_thread::get_id());
     auto ctx = contexts[tid];
     handleObservation(ctx);
-    cudaq::getExecutionManager()->resetExecutionContext();
+    cudaq::get_execution_manager().resetExecutionContext();
     contexts[tid] = nullptr;
     contexts.erase(tid);
   }
