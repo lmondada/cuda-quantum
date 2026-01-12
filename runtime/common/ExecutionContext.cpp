@@ -34,7 +34,7 @@ bool isInBatchMode() {
 
 bool isLastBatch() {
   return currentExecutionContext &&
-         currentExecutionContext->batchIteration > 0 &&
+         currentExecutionContext->totalIterations > 0 &&
          currentExecutionContext->batchIteration ==
              currentExecutionContext->totalIterations - 1;
 }

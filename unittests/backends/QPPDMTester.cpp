@@ -60,7 +60,9 @@ std::string getSampledBitString(QppNoiseCircuitSimulator &qppBackend,
   // measurement count map.
   cudaq::ExecutionContext ctx("sample", 1);
   qppBackend.configureExecutionContext(ctx);
+  cudaq::detail::setExecutionContext(&ctx);
   qppBackend.finalizeExecutionContext(ctx);
+  cudaq::detail::resetExecutionContext();
   auto sampleResults = ctx.result;
   return sampleResults.begin()->first;
 }

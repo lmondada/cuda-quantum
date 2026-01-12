@@ -428,7 +428,7 @@ protected:
   }
 
   /// @brief Set the current state back to the |0> state.
-  void setToZeroState() override { return; }
+  void setToZeroState() override { deallocateStateImpl(); }
 
   /// @brief Override the calculateStateDim because this is not a state vector
   /// simulator.
