@@ -58,6 +58,7 @@ public:
   /// @brief An optimization result
   std::optional<cudaq::optimization_result> optResult = std::nullopt;
 
+  /// @cond HIDDEN_MEMBERS
   /// @brief The kernel being executed in this context has conditional
   /// statements on measure results.
   bool hasConditionalsOnMeasureResults = false;
@@ -153,6 +154,7 @@ public:
   /// Note: Measurement Syndrome Matrix is defined in
   /// https://arxiv.org/pdf/2407.13826.
   std::optional<std::pair<std::size_t, std::size_t>> msm_dimensions;
+  /// @endcond
 };
 
 //===----------------------------------------------------------------------===//
