@@ -11,8 +11,8 @@
 #include "common/ExecutionContext.h"
 #include "common/SampleResult.h"
 #include "cudaq/algorithms/broadcast.h"
+#include "cudaq/builder/kernel_builder.h"
 #include "cudaq/concepts.h"
-#include "cudaq/host_config.h"
 
 constexpr int DEFAULT_NUM_SHOTS = 1000;
 

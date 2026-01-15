@@ -7,7 +7,7 @@
  ******************************************************************************/
 
 #include "py_runtime_target.h"
-#include "LinkedLibraryHolder.h"
+#include "LinkedLibraryInit.h"
 #include "common/FmtCore.h"
 #include "common/Logger.h"
 #include "cudaq/platform.h"
@@ -77,7 +77,7 @@ parseTargetKwArgs(const py::kwargs &extraConfig) {
   return config;
 }
 
-void bindRuntimeTarget(py::module &mod, LinkedLibraryHolder &holder) {
+void bindRuntimeTarget(py::module &mod) {
 
   py::enum_<simulation_precision>(
       mod, "SimulationPrecision",
@@ -142,32 +142,32 @@ void bindRuntimeTarget(py::module &mod, LinkedLibraryHolder &holder) {
 
   mod.def(
       "has_target",
-      [&](const std::string &name) { return holder.hasTarget(name); },
+      [](const std::string &name) { return cudaq::python::hasTarget(name); },
       "Return true if the `cudaq.Target` with the given name exists.");
   mod.def(
       "reset_target",
-      [&]() {
-        holder.resetTarget();
-        onTargetChange(holder.getTarget());
+      []() {
+        cudaq::python::resetTarget();
+        onTargetChange(cudaq::python::getTarget());
       },
       "Reset the current `cudaq.Target` to the default.");
   mod.def(
       "get_target",
-      [&](const std::string &name) { return holder.getTarget(name); },
+      [](const std::string &name) { return cudaq::python::getTarget(name); },
       "Return the `cudaq.Target` with the given name. Will raise an exception "
       "if the name is not valid.");
   mod.def(
-      "get_target", [&]() { return holder.getTarget(); },
+      "get_target", []() { return cudaq::python::getTarget(); },
       "Return the `cudaq.Target` with the given name. Will raise an exception "
       "if the name is not valid.");
   mod.def(
-      "get_targets", [&]() { return holder.getTargets(); },
+      "get_targets", []() { return cudaq::python::getTargets(); },
       "Return all available `cudaq.Target` instances on the current system.");
   mod.def(
       "set_target",
-      [&](const cudaq::RuntimeTarget &target, py::kwargs extraConfig) {
+      [](const cudaq::RuntimeTarget &target, py::kwargs extraConfig) {
         auto config = parseTargetKwArgs(extraConfig);
-        holder.setTarget(target.name, config);
+        cudaq::python::setTarget(target.name, config);
         onTargetChange(target);
       },
       "Set the `cudaq.Target` to be used for CUDA-Q kernel execution. "
@@ -175,10 +175,10 @@ void bindRuntimeTarget(py::module &mod, LinkedLibraryHolder &holder) {
       "kwargs.");
   mod.def(
       "set_target",
-      [&](const std::string &name, py::kwargs extraConfig) {
+      [](const std::string &name, py::kwargs extraConfig) {
         auto config = parseTargetKwArgs(extraConfig);
-        holder.setTarget(name, config);
-        onTargetChange(holder.getTarget());
+        cudaq::python::setTarget(name, config);
+        onTargetChange(cudaq::python::getTarget());
       },
       "Set the `cudaq.Target` with given name to be used for CUDA-Q "
       "kernel execution. Can provide optional, target-specific configuration "
@@ -194,7 +194,7 @@ void bindRuntimeTarget(py::module &mod, LinkedLibraryHolder &holder) {
           return;
         registerSetTargetCallback(callback, id);
         // Execute the callback on the current target
-        callback(holder.getTarget());
+        callback(cudaq::python::getTarget());
       },
       "Register a callback function to be executed when the runtime target is "
       "changed. The string `id` can be used to identify the callback for "

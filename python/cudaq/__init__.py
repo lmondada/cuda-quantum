@@ -87,7 +87,7 @@ def _configure_cuda_library_paths() -> None:
         warnings.warn(f"Unsupported CUDA version {cuda_major}.", RuntimeWarning)
         return
 
-    # Colon-separated list of library paths for `LinkedLibraryHolder` to load
+    # Colon-separated list of library paths for `RuntimeBackendProvider` to load
     library_paths: List[str] = []
 
     # Attempt to load each library

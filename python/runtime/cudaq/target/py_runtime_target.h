@@ -14,8 +14,6 @@ namespace py = pybind11;
 
 namespace cudaq {
 
-class LinkedLibraryHolder;
-
-void bindRuntimeTarget(py::module &mod, LinkedLibraryHolder &holder);
+void bindRuntimeTarget(py::module &mod);
 
 } // namespace cudaq

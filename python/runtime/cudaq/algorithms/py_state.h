@@ -12,7 +12,5 @@
 #include <pybind11/pybind11.h>
 
 namespace cudaq {
-class LinkedLibraryHolder;
-
-void bindPyState(pybind11::module &mod, LinkedLibraryHolder &holder);
+void bindPyState(pybind11::module &mod);
 } // namespace cudaq

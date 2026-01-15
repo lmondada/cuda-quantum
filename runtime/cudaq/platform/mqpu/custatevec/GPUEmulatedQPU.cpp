@@ -50,7 +50,8 @@ public:
     if (noiseModel)
       context.noiseModel = noiseModel;
 
-    context.executionManager = cudaq::getDefaultExecutionManager();
+    auto &provider = cudaq::RuntimeBackendProvider::getSingleton();
+    context.executionManager = provider.createExecutionManager();
     context.executionManager->configureExecutionContext(context);
   }
 

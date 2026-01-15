@@ -950,8 +950,9 @@ public:
                 } else {
                   cudaq::ExecutionContext context("sample", 1);
                   context.hasConditionalsOnMeasureResults = true;
-                  context.executionManager =
-                      cudaq::getDefaultExecutionManager();
+                  auto &provider =
+                      cudaq::RuntimeBackendProvider::getSingleton();
+                  context.executionManager = provider.createExecutionManager();
                   cudaq::get_platform().with_execution_context(context, [&]() {
                     invokeJITKernel(localJIT[0], kernelName);
                   });
@@ -978,7 +979,8 @@ public:
               for (std::size_t i = 0; i < codes.size(); i++) {
                 cudaq::ExecutionContext context("sample", localShots);
                 context.reorderIdx = reorderIdx;
-                context.executionManager = cudaq::getDefaultExecutionManager();
+                auto &provider = cudaq::RuntimeBackendProvider::getSingleton();
+                context.executionManager = provider.createExecutionManager();
                 cudaq::get_platform().with_execution_context(context, [&]() {
                   invokeJITKernel(localJIT[i], kernelName);
                 });

@@ -1370,16 +1370,8 @@ private:
 #define CONCAT_INNER(a, b) a##b
 #define NVQIR_REGISTER_SIMULATOR(CLASSNAME, PRINTED_NAME)                      \
   extern "C" {                                                                 \
-  nvqir::CircuitSimulator *getCircuitSimulator() {                             \
-    thread_local static std::unique_ptr<nvqir::CircuitSimulator> simulator =   \
-        std::make_unique<CLASSNAME>();                                         \
-    return simulator.get();                                                    \
-  }                                                                            \
-  nvqir::CircuitSimulator *CONCAT(getCircuitSimulator_, PRINTED_NAME)() {      \
-    thread_local static std::unique_ptr<nvqir::CircuitSimulator> simulator =   \
-        std::make_unique<CLASSNAME>();                                         \
-    return simulator.get();                                                    \
-  }                                                                            \
+  nvqir::CircuitSimulator *createCircuitSimulator() { return new CLASSNAME; }  \
+  const char *getCircuitSimulatorName() { return #PRINTED_NAME; }              \
   }
 
 #define NVQIR_SIMULATOR_CLONE_IMPL(CLASSNAME)                                  \

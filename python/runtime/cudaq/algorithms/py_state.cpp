@@ -7,7 +7,7 @@
  ******************************************************************************/
 
 #include "py_state.h"
-#include "LinkedLibraryHolder.h"
+#include "LinkedLibraryInit.h"
 #include "common/ArgumentWrapper.h"
 #include "common/FmtCore.h"
 #include "common/Logger.h"
@@ -315,12 +315,12 @@ static cudaq::state createStateFromPyBuffer(py::buffer data,
 }
 
 /// @brief Bind the get_state cudaq function
-void cudaq::bindPyState(py::module &mod, LinkedLibraryHolder &holder) {
-  py::enum_<InitialState>(mod, "InitialStateType",
-                          "Enumeration describing the initial state "
-                          "type to be created in the backend")
-      .value("ZERO", InitialState::ZERO)
-      .value("UNIFORM", InitialState::UNIFORM)
+void bindPyState(py::module &mod) {
+  py::enum_<cudaq::InitialState>(mod, "InitialStateType",
+                                 "Enumeration describing the initial state "
+                                 "type to be created in the backend")
+      .value("ZERO", cudaq::InitialState::ZERO)
+      .value("UNIFORM", cudaq::InitialState::UNIFORM)
       .export_values();
 
   py::class_<SimulationState::Tensor>(
@@ -360,22 +360,21 @@ void cudaq::bindPyState(py::module &mod, LinkedLibraryHolder &holder) {
           "Convert the address of the state object to an integer.")
       .def_static(
           "from_data",
-          [&](py::buffer data) {
-            return createStateFromPyBuffer(data, holder);
-          },
+          [&](py::buffer data) { return createStateFromPyBuffer(data); },
           "Return a state from data.")
       .def_static(
           "from_data",
-          [&holder](const std::vector<py::buffer> &tensors) {
+          [](const std::vector<py::buffer> &tensors) {
             const bool isHostData =
                 tensors.empty() ||
                 !py::hasattr(tensors[0], "__cuda_array_interface__");
             // Check that the target is GPU-based, i.e., can handle device
             // pointer.
-            if (!holder.getTarget().config.GpuRequired && !isHostData)
+            auto target = cudaq::python::getTarget();
+            if (!target.config.GpuRequired && !isHostData)
               throw std::runtime_error(fmt::format(
                   "Current target '{}' does not support CuPy arrays.",
-                  holder.getTarget().name));
+                  target.name));
             TensorStateData tensorData;
             for (auto &tensor : tensors) {
               auto info =
@@ -444,7 +443,7 @@ void cudaq::bindPyState(py::module &mod, LinkedLibraryHolder &holder) {
           "ndarray).")
       .def_static(
           "from_data",
-          [&holder](py::object opaqueData) {
+          [](py::object opaqueData) {
             // Note: This overload is no longer needed from cupy 13.5+ onward.
             // We can remove it in future releases.
             // Make sure this is a CuPy array
@@ -483,7 +482,8 @@ void cudaq::bindPyState(py::module &mod, LinkedLibraryHolder &holder) {
             }();
 
             long ptr = data.attr("ptr").cast<long>();
-            if (holder.getTarget().name == "dynamics") {
+            auto target = cudaq::python::getTarget();
+            if (target.name == "dynamics") {
               // For dynamics, we need to send on the extents to distinguish
               // state vector vs density matrix.
               TensorStateData tensorData{
@@ -494,10 +494,10 @@ void cudaq::bindPyState(py::module &mod, LinkedLibraryHolder &holder) {
 
             // Check that the target is GPU-based, i.e., can handle device
             // pointer.
-            if (!holder.getTarget().config.GpuRequired)
+            if (!target.config.GpuRequired)
               throw std::runtime_error(fmt::format(
                   "Current target '{}' does not support CuPy arrays.",
-                  holder.getTarget().name));
+                  target.name));
 
             if (typeStr == "complex64")
               return state::from_data(std::make_pair(
@@ -641,11 +641,11 @@ index pair.
           "Compute the overlap between the provided :class:`State`'s.")
       .def(
           "overlap",
-          [&holder](state &self, py::buffer &other) {
+          [](state &self, py::buffer &other) {
             if (self.get_num_tensors() != 1)
               throw std::runtime_error("overlap NumPy interop only supported "
                                        "for vector and matrix state data.");
-            auto otherState = createStateFromPyBuffer(other, holder);
+            auto otherState = createStateFromPyBuffer(other);
             return self.overlap(otherState);
           },
           "Compute the overlap between the provided :class:`State`'s.")
@@ -824,8 +824,8 @@ index pair.
       [&](const std::string &shortName, MlirModule module, MlirType retTy,
           py::args args) {
         // Check for unsupported cases.
-        if (holder.getTarget().name == "remote-mqpu" ||
-            holder.getTarget().name == "orca-photonics" ||
+        auto target = cudaq::python::getTarget();
+        if (target.name == "remote-mqpu" || target.name == "orca-photonics" ||
             is_remote_platform() || is_emulated_platform())
           throw std::runtime_error(
               "get_state is not supported in this context.");
