@@ -8,21 +8,21 @@
 
 #include <gtest/gtest.h>
 
+#include "common/RuntimeBackendProvider.h"
 #include "cudaq.h"
 #include "cudaq/photonics.h"
 #include "cudaq/qis/execution_manager.h"
 
-extern "C" {
-cudaq::ExecutionManager *getRegisteredExecutionManager_photonics();
-}
-
 class PhotonicsTester : public ::testing::Test {
 protected:
   void SetUp() override {
-    cudaq::setExecutionManagerInternal(
-        getRegisteredExecutionManager_photonics());
+    auto &provider = cudaq::RuntimeBackendProvider::getSingleton();
+    provider.setExecutionManager("photonics");
   }
-  void TearDown() override { cudaq::resetExecutionManagerInternal(); }
+  void TearDown() override {
+    auto &provider = cudaq::RuntimeBackendProvider::getSingleton();
+    provider.setExecutionManager("default");
+  }
 };
 
 TEST_F(PhotonicsTester, checkSimple) {

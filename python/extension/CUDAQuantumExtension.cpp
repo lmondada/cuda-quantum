@@ -44,8 +44,8 @@
 #include "runtime/cudaq/target/py_testing_utils.h"
 #include "runtime/interop/PythonCppInterop.h"
 #include "runtime/mlir/py_register_dialects.h"
-#include "utils/LinkedLibraryHolder.h"
 #include "utils/OpaqueArguments.h"
+#include "utils/PythonBackendProvider.h"
 #include "mlir/Bindings/Python/PybindAdaptors.h"
 #include "mlir/Parser/Parser.h"
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
@@ -56,11 +56,10 @@
 namespace py = pybind11;
 
 using namespace cudaq;
-
-static std::unique_ptr<LinkedLibraryHolder> holder;
+using namespace cudaq::python;
 
 PYBIND11_MODULE(_quakeDialects, m) {
-  holder = std::make_unique<LinkedLibraryHolder>();
+  PythonBackendProvider::initializeBackendProvider();
 
   bindRegisterDialects(m);
 
@@ -88,13 +87,13 @@ PYBIND11_MODULE(_quakeDialects, m) {
         }
         if (target && !target->empty()) {
           CUDAQ_INFO("Processing Python Arg: target - {}", *target);
-          holder->setTarget(*target, extraConfig);
+          PythonBackendProvider::setTarget(*target, extraConfig);
         }
       },
       py::arg("option") = py::none(), py::arg("emulate") = py::none(),
       py::arg("target") = py::none(), "Initialize the CUDA-Q environment.");
 
-  bindRuntimeTarget(cudaqRuntime, *holder.get());
+  bindRuntimeTarget(cudaqRuntime);
   bindMeasureCounts(cudaqRuntime);
   bindResources(cudaqRuntime);
   bindObserveResult(cudaqRuntime);
@@ -111,7 +110,7 @@ PYBIND11_MODULE(_quakeDialects, m) {
   bindNoise(cudaqRuntime);
   bindExecutionContext(cudaqRuntime);
   bindExecutionManager(cudaqRuntime);
-  bindPyState(cudaqRuntime, *holder.get());
+  bindPyState(cudaqRuntime);
   bindPyDataClassRegistry(cudaqRuntime);
   bindPyEvolve(cudaqRuntime);
   bindEvolveResult(cudaqRuntime);
@@ -123,10 +122,10 @@ PYBIND11_MODULE(_quakeDialects, m) {
   bindCountResources(cudaqRuntime);
   bindSampleAsync(cudaqRuntime);
   bindObserveAsync(cudaqRuntime);
-  bindAltLaunchKernel(cudaqRuntime, [holderPtr = holder.get()]() {
-    return python::getTransportLayer(holderPtr);
+  bindAltLaunchKernel(cudaqRuntime, []() {
+    return PythonBackendProvider::getTransportLayer();
   });
-  bindTestUtils(cudaqRuntime, *holder.get());
+  bindTestUtils(cudaqRuntime);
   bindCustomOpRegistry(cudaqRuntime);
 
   cudaqRuntime.def("set_random_seed", &set_random_seed,
@@ -181,8 +180,7 @@ PYBIND11_MODULE(_quakeDialects, m) {
   mpiSubmodule.def(
       "is_initialized", []() { return mpi::is_initialized(); },
       "Returns true if MPI has already been initialized.");
-  mpiSubmodule.def(
-      "finalize", []() { mpi::finalize(); }, "Finalize MPI.");
+  mpiSubmodule.def("finalize", []() { mpi::finalize(); }, "Finalize MPI.");
   mpiSubmodule.def(
       "comm_dup",
       []() {

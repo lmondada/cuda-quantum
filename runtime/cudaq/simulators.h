@@ -8,18 +8,15 @@
 
 #pragma once
 
-#include "common/PluginUtils.h"
+#include "common/RuntimeBackendProvider.h"
 #include "nvqir/CircuitSimulator.h"
-
-namespace nvqir {
-extern CircuitSimulator *getCircuitSimulatorInternal();
-}
 
 namespace cudaq {
 
 /// @brief Return the quantum circuit simulator for qubits.
 inline nvqir::CircuitSimulator *get_simulator() {
-  return nvqir::getCircuitSimulatorInternal();
+  auto &provider = RuntimeBackendProvider::getSingleton();
+  return provider.getSimulator();
 }
 
 } // namespace cudaq

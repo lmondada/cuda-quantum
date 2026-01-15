@@ -7,8 +7,11 @@
  ******************************************************************************/
 
 #include "mpi_plugin.h"
-#include "common/PluginUtils.h"
+#include "common/FmtCore.h"
+#include "common/Logger.h"
 #include <cassert>
+#include <dlfcn.h>
+#include <stdexcept>
 
 namespace {
 #define HANDLE_MPI_ERROR(x)                                                    \
@@ -20,6 +23,17 @@ namespace {
       std::abort();                                                            \
     }                                                                          \
   };
+
+template <typename T>
+T *getInstance(const std::string_view symbolName, void *libHandle) {
+  using Factory = T *(*)();
+  auto factory = reinterpret_cast<Factory>(dlsym(libHandle, symbolName.data()));
+  if (!factory) {
+    throw std::runtime_error(
+        fmt::format("Could not load the requested symbol. \n{}\n", dlerror()));
+  }
+  return factory();
+}
 } // namespace
 
 namespace cudaq {
@@ -37,12 +51,11 @@ MPIPlugin::MPIPlugin(const std::string &distributedInterfaceLib) {
     throw std::runtime_error("Unable to open distributed interface library '" +
                              distributedInterfaceLib + "': " + errorMsg);
   }
-  m_distributedInterface = getUniquePluginInstance<cudaqDistributedInterface_t>(
-      DISTRIBUTED_INTERFACE_GETTER_SYMBOL_NAME,
-      distributedInterfaceLib.c_str());
-  m_comm = getUniquePluginInstance<cudaqDistributedCommunicator_t>(
-      COMM_GETTER_SYMBOL_NAME, distributedInterfaceLib.c_str());
-  // getUniquePluginInstance should have thrown if cannot load.
+  m_distributedInterface = getInstance<cudaqDistributedInterface_t>(
+      DISTRIBUTED_INTERFACE_GETTER_SYMBOL_NAME, m_libhandle);
+  m_comm = getInstance<cudaqDistributedCommunicator_t>(COMM_GETTER_SYMBOL_NAME,
+                                                       m_libhandle);
+  // getInstance should have thrown if cannot load.
   assert(m_distributedInterface && m_comm);
   m_valid = m_comm->commSize > 0;
   m_libFile = distributedInterfaceLib;

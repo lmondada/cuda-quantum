@@ -12,8 +12,7 @@ message(STATUS "Building Pasqal REST QPU.")
 add_library(${LIBRARY_NAME}
   SHARED
     PasqalRemoteRESTQPU.cpp
-    PasqalServerHelper.cpp
-)
+    PasqalServerHelper.cpp)
 
 target_include_directories(${LIBRARY_NAME} PRIVATE .
   PUBLIC 
@@ -30,7 +29,6 @@ target_link_libraries(${LIBRARY_NAME}
     cudaq-mlir-runtime 
     fmt::fmt-header-only
     cudaq 
-    cudaq-platform-default
 ) 
     
 install(TARGETS ${LIBRARY_NAME} DESTINATION lib)

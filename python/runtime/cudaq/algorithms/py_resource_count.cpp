@@ -9,7 +9,8 @@
 #include "py_resource_count.h"
 #include "common/Resources.h"
 #include "runtime/cudaq/platform/py_alt_launch_kernel.h"
-#include "utils/LinkedLibraryHolder.h"
+#include "utils/OpaqueArguments.h"
+#include "utils/PythonBackendProvider.h"
 #include "mlir/Bindings/Python/PybindAdaptors.h"
 #include <pybind11/functional.h>
 

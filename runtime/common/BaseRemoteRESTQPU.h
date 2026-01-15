@@ -871,7 +871,8 @@ public:
     // the circuit. If so, perform the trace here and then return.
     if (executionContext->name == "tracer" && jitEngines.size() == 1) {
       cudaq::ExecutionContext context("tracer");
-      context.executionManager = cudaq::getDefaultExecutionManager();
+      context.executionManager = cudaq::RuntimeBackendProvider::getSingleton()
+                                     .createExecutionManager();
       cudaq::get_platform().with_execution_context(context, [&]() {
         invokeJITKernelAndRelease(jitEngines[0], kernelName);
       });
@@ -882,7 +883,8 @@ public:
 
     if (executionContext->name == "resource-count") {
       cudaq::ExecutionContext context("resource-count");
-      context.executionManager = cudaq::getDefaultExecutionManager();
+      context.executionManager = cudaq::RuntimeBackendProvider::getSingleton()
+                                     .createExecutionManager();
       assert(jitEngines.size() == 1);
       cudaq::get_platform().with_execution_context(context, [&]() {
         invokeJITKernelAndRelease(jitEngines[0], kernelName);
@@ -950,8 +952,9 @@ public:
                 } else {
                   cudaq::ExecutionContext context("sample", 1);
                   context.hasConditionalsOnMeasureResults = true;
-                  context.executionManager =
-                      cudaq::getDefaultExecutionManager();
+                  auto &provider =
+                      cudaq::RuntimeBackendProvider::getSingleton();
+                  context.executionManager = provider.createExecutionManager();
                   cudaq::get_platform().with_execution_context(context, [&]() {
                     invokeJITKernel(localJIT[0], kernelName);
                   });
@@ -978,7 +981,8 @@ public:
               for (std::size_t i = 0; i < codes.size(); i++) {
                 cudaq::ExecutionContext context("sample", localShots);
                 context.reorderIdx = reorderIdx;
-                context.executionManager = cudaq::getDefaultExecutionManager();
+                auto &provider = cudaq::RuntimeBackendProvider::getSingleton();
+                context.executionManager = provider.createExecutionManager();
                 cudaq::get_platform().with_execution_context(context, [&]() {
                   invokeJITKernel(localJIT[i], kernelName);
                 });

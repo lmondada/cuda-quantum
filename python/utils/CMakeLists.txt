@@ -8,13 +8,13 @@
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 SET(CMAKE_INSTALL_RPATH "$ORIGIN:$ORIGIN/..")
 
-add_library(cudaq-py-utils SHARED LinkedLibraryHolder.cpp)
+add_library(cudaq-py-utils SHARED PythonBackendProvider.cpp)
 target_link_libraries(cudaq-py-utils PRIVATE 
   nvqir 
   cudaq 
+  cudaq-common
   fmt::fmt-header-only 
   CUDAQTargetConfigUtil 
-  cudaq-common
 )
 target_include_directories(cudaq-py-utils PUBLIC 
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/python/utils>

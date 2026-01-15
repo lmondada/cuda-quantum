@@ -10,6 +10,7 @@
 
 #include "common/DeviceCodeRegistry.h"
 #include "common/ExecutionContext.h"
+#include "cudaq/builder/kernel_builder.h"
 #include "cudaq/concepts.h"
 #include "qkernel.h"
 

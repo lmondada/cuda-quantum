@@ -6,56 +6,35 @@
  * the terms of the Apache License 2.0 which accompanies this distribution.    *
  ******************************************************************************/
 
-#include "common/FmtCore.h"
 #include "common/JIT.h"
 #include "common/JsonConvert.h"
 #include "common/Logger.h"
-#include "common/PluginUtils.h"
 #include "common/RemoteKernelExecutor.h"
+#include "common/RuntimeBackendProvider.h"
 #include "common/RuntimeMLIR.h"
 #include "cudaq.h"
 #include "cudaq/Optimizer/Builder/Runtime.h"
 #include "cudaq/Optimizer/CodeGen/Passes.h"
-#include "cudaq/Optimizer/Dialect/CC/CCDialect.h"
-#include "cudaq/Optimizer/Dialect/CC/CCOps.h"
-#include "cudaq/Optimizer/Dialect/Quake/QuakeDialect.h"
-#include "cudaq/Optimizer/Dialect/Quake/QuakeOps.h"
-#include "cudaq/Optimizer/Transforms/Passes.h"
 #include "nvqir/CircuitSimulator.h"
 #include "server_impl/RestServer.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Support/Base64.h"
-#include "llvm/Support/CommandLine.h"
-#include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/SourceMgr.h"
-#include "llvm/Support/TargetSelect.h"
-#include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_ostream.h"
 #include "mlir/ExecutionEngine/ExecutionEngine.h"
 #include "mlir/ExecutionEngine/OptUtils.h"
 #include "mlir/IR/AsmState.h"
 #include "mlir/IR/Verifier.h"
-#include "mlir/InitAllDialects.h"
-#include "mlir/InitAllPasses.h"
-#include "mlir/InitAllTranslations.h"
 #include "mlir/Parser/Parser.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Export.h"
-#include "mlir/Tools/mlir-translate/Translation.h"
-#include "mlir/Transforms/Passes.h"
 #include <cxxabi.h>
 #include <filesystem>
-#include <fstream>
-#include <streambuf>
-
-extern "C" {
-void __nvqir__setCircuitSimulator(nvqir::CircuitSimulator *);
-}
 
 namespace {
 using namespace mlir;
@@ -111,7 +90,7 @@ class RemoteRestRuntimeServer : public cudaq::RemoteRuntimeServer {
   };
   std::unordered_map<std::size_t, CodeTransformInfo> m_codeTransform;
   // Currently-loaded NVQIR simulator.
-  SimulatorHandle m_simHandle;
+  std::string m_loadedLibraryName;
   // Default backend for initialization.
   // Note: we always need to preload a default backend on the server runtime
   // since cudaq runtime relies on that.
@@ -142,8 +121,7 @@ protected:
 public:
   RemoteRestRuntimeServer()
       : cudaq::RemoteRuntimeServer(),
-        m_simHandle(DEFAULT_NVQIR_SIMULATION_BACKEND,
-                    loadNvqirSimLib(DEFAULT_NVQIR_SIMULATION_BACKEND)) {}
+        m_loadedLibraryName(DEFAULT_NVQIR_SIMULATION_BACKEND) {}
 
   virtual std::pair<int, int> version() const override {
     return std::make_pair(cudaq::RestRequest::REST_PAYLOAD_VERSION,
@@ -232,14 +210,8 @@ public:
     // sampling is disabled. This is standard VQE/observe behavior.
     std::int64_t shots = *reinterpret_cast<std::int64_t *>(&io_context.shots);
 
-    // If we're changing the backend, load the new simulator library from file.
-    if (m_simHandle.name != backendSimName) {
-      if (m_simHandle.libHandle)
-        dlclose(m_simHandle.libHandle);
-
-      m_simHandle =
-          SimulatorHandle(backendSimName, loadNvqirSimLib(backendSimName));
-    }
+    // Load the new simulator.
+    loadSimulator(backendSimName);
 
     if (seed != 0)
       cudaq::set_random_seed(seed);
@@ -306,14 +278,9 @@ public:
                              void *kernelArgs, std::uint64_t argsSize,
                              std::size_t seed) override {
 
-    // If we're changing the backend, load the new simulator library from file.
-    if (m_simHandle.name != backendSimName) {
-      if (m_simHandle.libHandle)
-        dlclose(m_simHandle.libHandle);
+    // Load the new simulator.
+    loadSimulator(backendSimName);
 
-      m_simHandle =
-          SimulatorHandle(backendSimName, loadNvqirSimLib(backendSimName));
-    }
     if (seed != 0)
       cudaq::set_random_seed(seed);
     auto &requestInfo = m_codeTransform[reqId];
@@ -372,7 +339,8 @@ public:
         // Handle cudaq::run: it should be executed in a context-free manner;
         // the output log is accumulated in the simulator output log.
         //  Clear the outputLog.
-        auto *circuitSimulator = nvqir::getCircuitSimulatorInternal();
+        auto &provider = cudaq::RuntimeBackendProvider::getSingleton();
+        auto *circuitSimulator = provider.getSimulator();
         circuitSimulator->outputLog.clear();
         // Invoke the kernel multiple times.
         invokeMlirKernel(io_context, m_mlirContext, ir, requestInfo.passes,
@@ -556,29 +524,27 @@ protected:
     }
   }
 
-  void *loadNvqirSimLib(const std::string &simulatorName) {
+  void loadSimulator(const std::string &simulatorName) {
+    auto libraryName = cudaq_fmt::format("libnvqir-{}", simulatorName);
+    if (libraryName == m_loadedLibraryName)
+      return;
+
+    auto &provider = cudaq::RuntimeBackendProvider::getSingleton();
+    if (!m_loadedLibraryName.empty())
+      provider.unloadLibrary(m_loadedLibraryName);
+
     const std::filesystem::path cudaqLibPath{cudaq::getCUDAQLibraryPath()};
 #if defined(__APPLE__) && defined(__MACH__)
     const auto libSuffix = "dylib";
 #else
     const auto libSuffix = "so";
 #endif
-    const auto simLibPath =
-        cudaqLibPath.parent_path() /
-        fmt::format("libnvqir-{}.{}", simulatorName, libSuffix);
-    CUDAQ_INFO("Request simulator {} at {}", simulatorName, simLibPath.c_str());
-    void *simLibHandle = dlopen(simLibPath.c_str(), RTLD_GLOBAL | RTLD_NOW);
-    if (!simLibHandle) {
-      char *error_msg = dlerror();
-      throw std::runtime_error(fmt::format(
-          "Failed to open simulator backend library: {}.",
-          error_msg ? std::string(error_msg) : std::string("Unknown error")));
-    }
-    auto *sim = cudaq::getUniquePluginInstance<nvqir::CircuitSimulator>(
-        std::string("getCircuitSimulator"), simLibPath.c_str());
-    __nvqir__setCircuitSimulator(sim);
+    auto simLibPath = cudaqLibPath.parent_path() / libraryName;
+    simLibPath.replace_extension(libSuffix);
 
-    return simLibHandle;
+    CUDAQ_INFO("Request simulator {} at {}", simulatorName, simLibPath.c_str());
+    m_loadedLibraryName = provider.loadLibrary(&simLibPath);
+    provider.setSimulator(simulatorName);
   }
 
   virtual json processRequest(const std::string &reqBody,
@@ -600,8 +566,8 @@ protected:
         return;
       } else {
         // Timed out. Perform abort.
-        fmt::print("Processing timed out after {} seconds! Aborting!\n",
-                   timeout.count());
+        cudaq_fmt::print("Processing timed out after {} seconds! Aborting!\n",
+                         timeout.count());
         exit(-1);
       }
     });
@@ -639,7 +605,7 @@ protected:
       // automatically versioning the payload (converting payload between
       // different versions) at the moment.
       if (static_cast<int>(request.version) != version().first)
-        throw std::runtime_error(fmt::format(
+        throw std::runtime_error(cudaq_fmt::format(
             "Incompatible REST payload version detected: supported version {}, "
             "got version {}.",
             version().first, request.version));

@@ -159,9 +159,8 @@ public:
   void *jitEng = nullptr;
 
   /// @cond HIDDEN_MEMBERS
-  /// @brief Pointer to the execution manager for the current execution context,
-  /// if it exists.
-  ExecutionManager *executionManager = nullptr;
+  /// @brief The execution manager for the current execution context.
+  std::unique_ptr<ExecutionManager> executionManager = nullptr;
   /// @endcond
 };
 
@@ -175,6 +174,9 @@ public:
 /// appropriate QPU backend. It is also currently used in QPUs and simulators
 /// to adjust behavior based on the execution context.
 ExecutionContext *getExecutionContext();
+
+/// @brief Get the execution manager of the current execution context.
+ExecutionManager *getExecutionManager();
 
 /// @brief Return true if the simulator is in the tracer mode.
 bool isInTracerMode();

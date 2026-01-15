@@ -28,12 +28,12 @@ endif()
 target_link_libraries(cudaq-rest-qpu
   PUBLIC
     cudaq-operator
-    cudaq-common
+    cudaq-common 
   PRIVATE
-    cudaq-mlir-runtime
-    fmt::fmt-header-only
-    cudaq
-    cudaq-platform-default
+    cudaq-mlir-runtime 
+    MLIRTranslateLib
+    fmt::fmt-header-only 
+    cudaq 
     ${AWSSDK_LINK_LIBRARIES})
 
 install(TARGETS cudaq-rest-qpu DESTINATION lib)
