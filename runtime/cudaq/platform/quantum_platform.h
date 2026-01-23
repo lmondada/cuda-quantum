@@ -88,13 +88,19 @@ public:
     auto cleanup = [&]() {
       detail::try_finally(
           [&] {
+            CUDAQ_INFO("Finalizing execution context");
             finalizeExecutionContext(ctx);
+            CUDAQ_INFO("Ending execution");
             endExecution();
+            CUDAQ_INFO("Execution ended successfully");
           },
           [&] {
+            CUDAQ_INFO("resetting execution context");
             detail::resetExecutionContext();
+            CUDAQ_INFO("almost done");
             if (outerContext)
               detail::setExecutionContext(outerContext);
+            CUDAQ_INFO("done");
           });
     };
 
@@ -109,6 +115,7 @@ public:
       CUDAQ_WARN("Runtime execution error: {}", e.what());
       throw;
     }
+    CUDAQ_INFO("ending with_execution_context successfully");
   }
 
   ///  Get the number of QPUs available with this platform.
