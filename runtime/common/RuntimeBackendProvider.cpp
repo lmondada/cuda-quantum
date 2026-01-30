@@ -9,7 +9,6 @@
 #include "RuntimeBackendProvider.h"
 #include "FmtCore.h"
 #include "Logger.h"
-#include "Registry.h"
 #include "RuntimeTarget.h"
 #include "cudaq/Support/TargetConfigYaml.h"
 #include "cudaq/host_config.h"
@@ -26,7 +25,6 @@
 #include <mutex>
 #include <ranges>
 #include <regex>
-#include <shared_mutex>
 #include <stdexcept>
 #include <unordered_map>
 

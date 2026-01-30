@@ -525,7 +525,7 @@ protected:
   }
 
   void loadSimulator(const std::string &simulatorName) {
-    auto libraryName = fmt::format("libnvqir-{}", simulatorName);
+    auto libraryName = cudaq_fmt::format("libnvqir-{}", simulatorName);
     if (libraryName == m_loadedLibraryName)
       return;
 
@@ -566,8 +566,8 @@ protected:
         return;
       } else {
         // Timed out. Perform abort.
-        fmt::print("Processing timed out after {} seconds! Aborting!\n",
-                   timeout.count());
+        cudaq_fmt::print("Processing timed out after {} seconds! Aborting!\n",
+                         timeout.count());
         exit(-1);
       }
     });
@@ -605,7 +605,7 @@ protected:
       // automatically versioning the payload (converting payload between
       // different versions) at the moment.
       if (static_cast<int>(request.version) != version().first)
-        throw std::runtime_error(fmt::format(
+        throw std::runtime_error(cudaq_fmt::format(
             "Incompatible REST payload version detected: supported version {}, "
             "got version {}.",
             version().first, request.version));

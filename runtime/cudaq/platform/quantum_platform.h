@@ -13,6 +13,7 @@
 #include "common/Logger.h"
 #include "common/NoiseModel.h"
 #include "common/ObserveResult.h"
+#include "common/RuntimeBackendProvider.h"
 #include "common/ThunkInterface.h"
 #include "cudaq/remote_capabilities.h"
 #include "cudaq/utils/cudaq_utils.h"
@@ -226,8 +227,7 @@ public:
   void setLogStream(std::ostream &logStream);
 
 protected:
-  friend class cudaq::LinkedLibraryHolder;
-  friend class cudaq::__internal__::TargetSetter;
+  friend class cudaq::RuntimeBackendProvider;
   /// @brief Set the target backend, by default do nothing, let subclasses
   /// override
   /// @param name

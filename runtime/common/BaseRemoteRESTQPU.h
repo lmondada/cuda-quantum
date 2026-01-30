@@ -871,7 +871,8 @@ public:
     // the circuit. If so, perform the trace here and then return.
     if (executionContext->name == "tracer" && jitEngines.size() == 1) {
       cudaq::ExecutionContext context("tracer");
-      context.executionManager = cudaq::getDefaultExecutionManager();
+      context.executionManager = cudaq::RuntimeBackendProvider::getSingleton()
+                                     .createExecutionManager();
       cudaq::get_platform().with_execution_context(context, [&]() {
         invokeJITKernelAndRelease(jitEngines[0], kernelName);
       });
@@ -882,7 +883,8 @@ public:
 
     if (executionContext->name == "resource-count") {
       cudaq::ExecutionContext context("resource-count");
-      context.executionManager = cudaq::getDefaultExecutionManager();
+      context.executionManager = cudaq::RuntimeBackendProvider::getSingleton()
+                                     .createExecutionManager();
       assert(jitEngines.size() == 1);
       cudaq::get_platform().with_execution_context(context, [&]() {
         invokeJITKernelAndRelease(jitEngines[0], kernelName);

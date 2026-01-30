@@ -251,15 +251,14 @@ static py::buffer_info getCupyBufferInfo(py::buffer cupy_buffer) {
   );
 }
 
-static cudaq::state createStateFromPyBuffer(py::buffer data,
-                                            LinkedLibraryHolder &holder) {
+static cudaq::state createStateFromPyBuffer(py::buffer data) {
   const bool isHostData = !py::hasattr(data, "__cuda_array_interface__");
   // Check that the target is GPU-based, i.e., can handle device
   // pointer.
-  if (!holder.getTarget().config.GpuRequired && !isHostData)
-    throw std::runtime_error(
-        fmt::format("Current target '{}' does not support CuPy arrays.",
-                    holder.getTarget().name));
+  auto target = cudaq::python::getTarget();
+  if (!target.config.GpuRequired && !isHostData)
+    throw std::runtime_error(fmt::format(
+        "Current target '{}' does not support CuPy arrays.", target.name));
 
   auto info = isHostData ? data.request() : getCupyBufferInfo(data);
   if (info.shape.size() > 2)
@@ -852,10 +851,10 @@ for more information on this programming pattern.)#")
       [&](const std::string &shortName, MlirModule module, MlirType retTy,
           std::size_t qpu_id, py::args args) {
         // Check for unsupported cases.
-        if (holder.getTarget().name == "remote-mqpu" ||
-            holder.getTarget().name == "nvqc" ||
-            holder.getTarget().name == "orca-photonics" ||
-            is_remote_platform() || is_emulated_platform())
+        auto target = cudaq::python::getTarget();
+        if (target.name == "remote-mqpu" || target.name == "nvqc" ||
+            target.name == "orca-photonics" || is_remote_platform() ||
+            is_emulated_platform())
           throw std::runtime_error(
               "get_state_async is not supported in this context.");
 

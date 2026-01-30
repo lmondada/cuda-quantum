@@ -18,6 +18,8 @@
 #include "distributed/mpi_plugin.h"
 #include <dlfcn.h>
 #include <filesystem>
+#include <llvm/ADT/SmallVector.h>
+#include <llvm/ADT/StringRef.h>
 #include <map>
 #include <signal.h>
 #include <string>
@@ -201,8 +203,16 @@ std::string demangle_kernel(const char *name) {
 bool globalFalse = false;
 
 TargetSetter::TargetSetter(const char *backend) {
-  auto &platform = cudaq::get_platform();
-  platform.setTargetBackend(std::string(backend));
+  llvm::SmallVector<llvm::StringRef> args;
+  llvm::StringRef(backend, strlen(backend)).split(args, ';', -1, false);
+  auto targetName = args[0].str();
+  std::map<std::string, std::string> extraConfig;
+  for (std::size_t i = 1; i < args.size() - 1; i += 2) {
+    extraConfig.insert({args[i].str(), args[i + 1].str()});
+  }
+
+  auto &provider = cudaq::RuntimeBackendProvider::getSingleton();
+  provider.setTarget(targetName, extraConfig);
 }
 } // namespace cudaq::__internal__
 

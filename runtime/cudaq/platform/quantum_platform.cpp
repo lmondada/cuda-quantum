@@ -283,7 +283,7 @@ cudaq::KernelThunkResultType cudaq::streamlinedLaunchModule(
     const std::vector<void *> &rawArgs, mlir::Type resTy) {
   ScopedTraceWithContext("streamlinedLaunchModule", kernelName, rawArgs.size());
 
-  auto &platform = *getQuantumPlatformInternal();
+  auto &platform = *RuntimeBackendProvider::getSingleton().getPlatform();
   std::size_t qpu_id = getCurrentQpuId();
   return platform.launchModule(kernelName, moduleOp, rawArgs, resTy, qpu_id);
 }
@@ -295,7 +295,7 @@ void *cudaq::streamlinedSpecializeModule(const std::string &kernelName,
   ScopedTraceWithContext("streamlinedSpecializeModule", kernelName,
                          rawArgs.size());
 
-  auto &platform = *getQuantumPlatformInternal();
+  auto &platform = *RuntimeBackendProvider::getSingleton().getPlatform();
   std::size_t qpu_id = getCurrentQpuId();
   return platform.specializeModule(kernelName, moduleOp, rawArgs, resTy,
                                    cachedEngine, qpu_id);
