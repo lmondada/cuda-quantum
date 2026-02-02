@@ -149,4 +149,4 @@ public:
 
 } // namespace cudaq
 
-CUDAQ_REGISTER_EXECUTION_MANAGER(SimpleQuditExecutionManager, simple)
+CUDAQ_REGISTER_EXECUTION_MANAGER(cudaq::SimpleQuditExecutionManager, simple)

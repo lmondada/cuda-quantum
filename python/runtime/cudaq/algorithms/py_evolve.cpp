@@ -6,7 +6,7 @@
  * the terms of the Apache License 2.0 which accompanies this distribution.    *
  ******************************************************************************/
 #include "py_evolve.h"
-#include "LinkedLibraryHolder.h"
+#include "LinkedLibraryInit.h"
 #include "common/ArgumentWrapper.h"
 #include "common/Logger.h"
 #include "cudaq/algorithms/evolve_internal.h"

@@ -10,11 +10,11 @@
 
 #include "common/ExecutionContext.h"
 #include "common/Resources.h"
+#include "common/RuntimeBackendProvider.h"
+#include "cudaq.h"
 #include "cudaq/platform.h"
 
 namespace nvqir {
-void switchToResourceCounterSimulator();
-void stopUsingResourceCounterSimulator();
 void setChoiceFunction(std::function<bool()> choice);
 cudaq::Resources *getResourceCounts();
 } // namespace nvqir
@@ -38,7 +38,8 @@ Resources run_estimate_resources(KernelFunctor &&wrappedKernel,
   ctx.asyncExec = false;
 
   // Use the resource counter simulator
-  nvqir::switchToResourceCounterSimulator();
+  cudaq::RuntimeBackendProvider::getSingleton().setSimulatorType(
+      cudaq::RuntimeBackendProvider::SimulatorType::ResourceCounterSimulator);
   // Set the choice function for the simulator
   nvqir::setChoiceFunction(choice);
 
@@ -48,7 +49,8 @@ Resources run_estimate_resources(KernelFunctor &&wrappedKernel,
   // Save and clone counts data
   auto counts = Resources(*nvqir::getResourceCounts());
   // Switch simulators back
-  nvqir::stopUsingResourceCounterSimulator();
+  cudaq::RuntimeBackendProvider::getSingleton().setSimulatorType(
+      cudaq::RuntimeBackendProvider::SimulatorType::CircuitSimulator);
 
   return counts;
 }

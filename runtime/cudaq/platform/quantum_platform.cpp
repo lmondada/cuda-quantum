@@ -9,15 +9,12 @@
 #include "cudaq/platform/quantum_platform.h"
 #include "common/ExecutionContext.h"
 #include "common/Logger.h"
-#include "common/PluginUtils.h"
+#include "common/RuntimeBackendProvider.h"
 #include "common/RuntimeTarget.h"
 #include "cudaq/platform/qpu.h"
 #include "mlir/IR/BuiltinOps.h"
 #include <iostream>
-#include <shared_mutex>
 #include <string>
-#include <thread>
-#include <unordered_map>
 
 LLVM_INSTANTIATE_REGISTRY(cudaq::QPU::RegistryType)
 
@@ -26,25 +23,6 @@ namespace cudaq {
 // These functions are defined elsewhere, but
 // we are going to use them here.
 std::string get_quake(const std::string &);
-
-static quantum_platform *platform;
-static constexpr std::string_view GetQuantumPlatformSymbol =
-    "getQuantumPlatform";
-
-void setQuantumPlatformInternal(quantum_platform *p) {
-  info("external caller setting the platform.");
-  platform = p;
-}
-
-/// @brief Get the provided platform plugin
-/// @return
-quantum_platform *getQuantumPlatformInternal() {
-  if (platform)
-    return platform;
-  platform =
-      getUniquePluginInstance<quantum_platform>(GetQuantumPlatformSymbol);
-  return platform;
-}
 
 void quantum_platform::set_noise(const noise_model *model, std::size_t qpu_id) {
   validateQpuId(qpu_id);
@@ -267,7 +245,8 @@ cudaq::altLaunchKernel(const char *kernelName,
                        cudaq::KernelThunkType kernelFunc, void *kernelArgs,
                        std::uint64_t argsSize, std::uint64_t resultOffset) {
   ScopedTraceWithContext("altLaunchKernel", kernelName, argsSize);
-  auto &platform = *getQuantumPlatformInternal();
+  auto &provider = RuntimeBackendProvider::getSingleton();
+  auto &platform = *provider.getPlatform();
   std::string kernName = kernelName;
   std::size_t qpu_id = cudaq::getCurrentQpuId();
   return platform.launchKernel(kernName, kernelFunc, kernelArgs, argsSize,
@@ -279,7 +258,8 @@ cudaq::streamlinedLaunchKernel(const char *kernelName,
                                const std::vector<void *> &rawArgs) {
   std::size_t argsSize = rawArgs.size();
   ScopedTraceWithContext("streamlinedLaunchKernel", kernelName, argsSize);
-  auto &platform = *getQuantumPlatformInternal();
+  auto &provider = RuntimeBackendProvider::getSingleton();
+  auto &platform = *provider.getPlatform();
   std::string kernName = kernelName;
   std::size_t qpu_id = cudaq::getCurrentQpuId();
   platform.launchKernel(kernName, rawArgs, qpu_id);
@@ -303,7 +283,7 @@ cudaq::KernelThunkResultType cudaq::streamlinedLaunchModule(
     const std::vector<void *> &rawArgs, mlir::Type resTy) {
   ScopedTraceWithContext("streamlinedLaunchModule", kernelName, rawArgs.size());
 
-  auto &platform = *getQuantumPlatformInternal();
+  auto &platform = *RuntimeBackendProvider::getSingleton().getPlatform();
   std::size_t qpu_id = getCurrentQpuId();
   return platform.launchModule(kernelName, moduleOp, rawArgs, resTy, qpu_id);
 }
@@ -315,7 +295,7 @@ void *cudaq::streamlinedSpecializeModule(const std::string &kernelName,
   ScopedTraceWithContext("streamlinedSpecializeModule", kernelName,
                          rawArgs.size());
 
-  auto &platform = *getQuantumPlatformInternal();
+  auto &platform = *RuntimeBackendProvider::getSingleton().getPlatform();
   std::size_t qpu_id = getCurrentQpuId();
   return platform.specializeModule(kernelName, moduleOp, rawArgs, resTy,
                                    cachedEngine, qpu_id);
@@ -327,7 +307,8 @@ cudaq::hybridLaunchKernel(const char *kernelName, cudaq::KernelThunkType kernel,
                           std::uint64_t resultOffset,
                           const std::vector<void *> &rawArgs) {
   ScopedTraceWithContext("hybridLaunchKernel", kernelName);
-  auto &platform = *getQuantumPlatformInternal();
+  auto &provider = RuntimeBackendProvider::getSingleton();
+  auto &platform = *provider.getPlatform();
   const std::string kernName = kernelName;
   std::size_t qpu_id = cudaq::getCurrentQpuId();
   if (platform.is_remote(qpu_id)) {

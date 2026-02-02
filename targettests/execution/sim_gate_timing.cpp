@@ -14,6 +14,7 @@
 // simply "did it run to completion?", but we will do additional timing tests
 // elsewhere.
 
+#include "common/RuntimeBackendProvider.h"
 #include "nvqir/CircuitSimulator.h"
 #include <cudaq.h>
 #include <iostream>
@@ -33,10 +34,6 @@
 // #define DEBUG
 #endif
 
-namespace nvqir {
-CircuitSimulator *getCircuitSimulatorInternal();
-}
-
 // Global data for timing functions
 std::vector<std::string> g_tagName{"h", "rx", "cnot"}; // for debug prints
 std::vector<double> g_hVec;
@@ -55,13 +52,15 @@ std::chrono::system_clock::time_point g_time;
 
 void timer_start(int tag) {
   // Flush before starting the timer to get accurate timing
-  nvqir::getCircuitSimulatorInternal()->flushGateQueue();
+  auto &provider = cudaq::RuntimeBackendProvider::getSingleton();
+  provider.getSimulator()->flushGateQueue();
   g_time = std::chrono::high_resolution_clock::now();
 }
 
 void timer_stop(int tag, int count) {
   // Flush before stopping the timer to get accurate timing
-  nvqir::getCircuitSimulatorInternal()->flushGateQueue();
+  auto &provider = cudaq::RuntimeBackendProvider::getSingleton();
+  provider.getSimulator()->flushGateQueue();
   auto tStop = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double> diff = tStop - g_time;
   double avg_ms = diff.count() * 1000.0 / count;

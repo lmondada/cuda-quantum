@@ -15,6 +15,7 @@
 #include "cudaq/host_config.h"
 #include "cudaq/operators.h"
 #include <deque>
+#include <functional>
 #include <string_view>
 #include <vector>
 
@@ -199,42 +200,9 @@ public:
   virtual ~ExecutionManager() = default;
 };
 
-// Function declaration, implemented by the macro expansion below
-ExecutionManager *getRegisteredExecutionManager();
-
-// Function declarations for explicit execution manager override
-// (implemented in execution_manager.cpp)
-ExecutionManager *getExecutionManagerInternal();
-void setExecutionManagerInternal(ExecutionManager *em);
-void resetExecutionManagerInternal();
-
-/// @brief Get an instance of the default execution manager.
-///
-/// Returns the explicitly set manager if one was set via
-/// setExecutionManagerInternal(), otherwise returns the default registered
-/// manager via getRegisteredExecutionManager().
-inline ExecutionManager *getDefaultExecutionManager() {
-  ExecutionManager *em = getExecutionManagerInternal();
-  if (em)
-    return em;
-  return getRegisteredExecutionManager();
-}
-
-namespace detail {
-ExecutionManager *getExecutionManagerFromContext();
-}
-
-/// Get the current execution manager.
-///
-/// This may only be called within a CUDA-Q kernel execution.
-inline ExecutionManager *getExecutionManager() {
-  ExecutionManager *em = detail::getExecutionManagerFromContext();
-  if (em) {
-    return em;
-  }
-  // if not execution context is set, use the default execution manager
-  return getDefaultExecutionManager();
-}
+/// Get the execution manager of the current execution context, defined in the
+/// ExecutionContext code.
+ExecutionManager *getExecutionManager();
 
 } // namespace cudaq
 
@@ -242,20 +210,8 @@ inline ExecutionManager *getExecutionManager() {
 // will define the global thread_local execution manager pointer instance, and
 // define the factory function for clients to get reference to the execution
 // manager.
-#define CONCAT(a, b) CONCAT_INNER(a, b)
-#define CONCAT_INNER(a, b) a##b
-#define CUDAQ_REGISTER_EXECUTION_MANAGER(Manager, Name)                        \
-  namespace cudaq {                                                            \
-  ExecutionManager *getRegisteredExecutionManager() {                          \
-    thread_local static std::unique_ptr<ExecutionManager> qis_manager =        \
-        std::make_unique<Manager>();                                           \
-    return qis_manager.get();                                                  \
-  }                                                                            \
-  }                                                                            \
+#define CUDAQ_REGISTER_EXECUTION_MANAGER(CLASSNAME, PRINTED_NAME)              \
   extern "C" {                                                                 \
-  cudaq::ExecutionManager *CONCAT(getRegisteredExecutionManager_, Name)() {    \
-    thread_local static std::unique_ptr<cudaq::ExecutionManager> qis_manager = \
-        std::make_unique<cudaq::Manager>();                                    \
-    return qis_manager.get();                                                  \
-  }                                                                            \
+  cudaq::ExecutionManager *createExecutionManager() { return new CLASSNAME; }  \
+  const char *getExecutionManagerName() { return #PRINTED_NAME; }              \
   }

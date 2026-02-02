@@ -7,6 +7,7 @@
  ******************************************************************************/
 
 #include "common/Logger.h"
+#include "common/RuntimeBackendProvider.h"
 #include "cudaq/operators.h"
 #include "cudaq/qis/managers/BasicExecutionManager.h"
 #include "cudaq/qis/qudit.h"
@@ -14,10 +15,6 @@
 #include "nvqir/CircuitSimulator.h"
 #include "llvm/ADT/StringSwitch.h"
 #include <span>
-
-namespace nvqir {
-CircuitSimulator *getCircuitSimulatorInternal();
-}
 
 namespace cudaq {
 
@@ -27,7 +24,8 @@ class DefaultExecutionManager : public cudaq::BasicExecutionManager {
 
 private:
   nvqir::CircuitSimulator *simulator() {
-    return nvqir::getCircuitSimulatorInternal();
+    auto &provider = RuntimeBackendProvider::getSingleton();
+    return provider.getSimulator();
   }
   /// @brief To improve `qudit` allocation, we defer
   /// single `qudit` allocation requests until the first
@@ -290,7 +288,7 @@ public:
 
 } // namespace cudaq
 
-CUDAQ_REGISTER_EXECUTION_MANAGER(DefaultExecutionManager, default)
+CUDAQ_REGISTER_EXECUTION_MANAGER(cudaq::DefaultExecutionManager, default)
 
 extern "C" {
 /// C interface to the (default) execution manager's methods.

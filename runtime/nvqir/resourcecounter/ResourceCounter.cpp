@@ -7,24 +7,32 @@
  ******************************************************************************/
 
 #include "ResourceCounter.h"
+#include "common/Logger.h"
+#include "common/RuntimeBackendProvider.h"
+#include "nvqir/CircuitSimulator.h"
 
 namespace nvqir {
-// Should be alive for the whole runtime, so won't leak memory
-thread_local ResourceCounter *resource_counter_simulator = nullptr;
-
-ResourceCounter *getResourceCounterSimulator() {
-  if (!resource_counter_simulator)
-    resource_counter_simulator = new nvqir::ResourceCounter();
-
-  return resource_counter_simulator;
-}
 
 void setChoiceFunction(std::function<bool()> choice) {
-  getResourceCounterSimulator()->setChoiceFunction(choice);
+  auto &provider = cudaq::RuntimeBackendProvider::getSingleton();
+  if (!provider.getResourceCounterSimulator()) {
+    CUDAQ_WARN("SimulatorType is not ResourceCounterSimulator, ignoring choice "
+               "function");
+    return;
+  }
+  provider.getResourceCounterSimulator()->setChoiceFunction(choice);
 }
 
 cudaq::Resources *getResourceCounts() {
-  getResourceCounterSimulator()->flushGateQueue();
-  return getResourceCounterSimulator()->getResourceCounts();
+  auto &provider = cudaq::RuntimeBackendProvider::getSingleton();
+  if (!provider.getResourceCounterSimulator()) {
+    CUDAQ_WARN("SimulatorType is not ResourceCounterSimulator, no resource "
+               "counts available");
+    return nullptr;
+  }
+  provider.getResourceCounterSimulator()->flushGateQueue();
+  return provider.getResourceCounterSimulator()->getResourceCounts();
 }
 } // namespace nvqir
+
+NVQIR_REGISTER_SIMULATOR(nvqir::ResourceCounter, resource_counter)

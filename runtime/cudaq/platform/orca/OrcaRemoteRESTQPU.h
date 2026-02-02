@@ -99,7 +99,8 @@ public:
 
   void
   configureExecutionContext(cudaq::ExecutionContext &context) const override {
-    context.executionManager = getDefaultExecutionManager();
+    auto &provider = RuntimeBackendProvider::getSingleton();
+    context.executionManager = provider.createExecutionManager();
     context.executionManager->configureExecutionContext(context);
   }
 

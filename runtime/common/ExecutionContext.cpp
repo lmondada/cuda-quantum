@@ -21,6 +21,12 @@ namespace cudaq {
 
 ExecutionContext *getExecutionContext() { return currentExecutionContext; }
 
+ExecutionManager *getExecutionManager() {
+  if (!currentExecutionContext)
+    return nullptr;
+  return currentExecutionContext->executionManager.get();
+}
+
 bool isInTracerMode() {
   return currentExecutionContext && currentExecutionContext->name == "tracer";
 }

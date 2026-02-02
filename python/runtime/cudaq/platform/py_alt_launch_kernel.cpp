@@ -22,7 +22,6 @@
 #include "cudaq/platform.h"
 #include "cudaq/platform/qpu.h"
 #include "runtime/cudaq/algorithms/py_utils.h"
-#include "utils/LinkedLibraryHolder.h"
 #include "utils/OpaqueArguments.h"
 #include "utils/PyTypes.h"
 #include "llvm/MC/SubtargetFeature.h"

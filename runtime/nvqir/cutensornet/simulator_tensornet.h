@@ -11,13 +11,6 @@
 #include "simulator_cutensornet.h"
 #include "tn_simulation_state.h"
 
-// Forward declaration
-#ifdef TENSORNET_FP32
-extern "C" nvqir::CircuitSimulator *getCircuitSimulator_tensornet_fp32();
-#else
-extern "C" nvqir::CircuitSimulator *getCircuitSimulator_tensornet();
-#endif
-
 namespace nvqir {
 template <typename ScalarType = double>
 class SimulatorTensorNet : public SimulatorTensorNetBase<ScalarType> {
@@ -181,11 +174,6 @@ public:
   }
 
 private:
-#ifdef TENSORNET_FP32
-  friend nvqir::CircuitSimulator * ::getCircuitSimulator_tensornet_fp32();
-#else
-  friend nvqir::CircuitSimulator * ::getCircuitSimulator_tensornet();
-#endif
   /// @brief Has cuTensorNet MPI been initialized?
   bool m_cutnMpiInitialized = false;
 };

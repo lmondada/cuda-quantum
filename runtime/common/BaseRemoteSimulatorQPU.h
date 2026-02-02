@@ -207,7 +207,8 @@ public:
                            executionContextPtr->shots,
                            executionContextPtr->qpuId);
       ctx.kernelName = executionContextPtr->kernelName;
-      ctx.executionManager = cudaq::getDefaultExecutionManager();
+      auto &provider = cudaq::RuntimeBackendProvider::getSingleton();
+      ctx.executionManager = provider.createExecutionManager();
       cudaq::get_platform().with_execution_context(
           ctx, [&]() { reinterpret_cast<void (*)()>(*funcPtr)(); });
       in_resource_estimation = false;

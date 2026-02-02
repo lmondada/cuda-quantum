@@ -13,6 +13,7 @@
 #include "common/Logger.h"
 #include "common/NoiseModel.h"
 #include "common/ObserveResult.h"
+#include "common/RuntimeBackendProvider.h"
 #include "common/ThunkInterface.h"
 #include "cudaq/remote_capabilities.h"
 #include "cudaq/utils/cudaq_utils.h"
@@ -233,8 +234,7 @@ public:
   void setLogStream(std::ostream &logStream);
 
 protected:
-  friend class cudaq::LinkedLibraryHolder;
-  friend class cudaq::__internal__::TargetSetter;
+  friend class cudaq::RuntimeBackendProvider;
   /// @brief Set the target backend, by default do nothing, let subclasses
   /// override
   /// @param name
@@ -287,18 +287,8 @@ hybridLaunchKernel(const char *kernelName, KernelThunkType kernel, void *args,
 } // extern "C"
 } // namespace cudaq
 
-#define CONCAT(a, b) CONCAT_INNER(a, b)
-#define CONCAT_INNER(a, b) a##b
-#define CUDAQ_REGISTER_PLATFORM(NAME, PRINTED_NAME)                            \
+#define CUDAQ_REGISTER_PLATFORM(CLASSNAME, PRINTED_NAME)                       \
   extern "C" {                                                                 \
-  cudaq::quantum_platform *getQuantumPlatform() {                              \
-    thread_local static std::unique_ptr<cudaq::quantum_platform> m_platform =  \
-        std::make_unique<NAME>();                                              \
-    return m_platform.get();                                                   \
-  }                                                                            \
-  cudaq::quantum_platform *CONCAT(getQuantumPlatform_, PRINTED_NAME)() {       \
-    thread_local static std::unique_ptr<cudaq::quantum_platform> m_platform =  \
-        std::make_unique<NAME>();                                              \
-    return m_platform.get();                                                   \
-  }                                                                            \
+  cudaq::quantum_platform *createQuantumPlatform() { return new CLASSNAME; }   \
+  const char *getQuantumPlatformName() { return #PRINTED_NAME; }               \
   }

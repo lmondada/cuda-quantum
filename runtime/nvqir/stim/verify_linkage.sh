@@ -24,10 +24,10 @@ fi
 
 # Search for 'stim' symbols, excluding the known entry point.
 # The command fails if grep finds any matching lines.
-if nm -D "$TARGET_LIB" | grep 'stim' | grep -q -v 'getCircuitSimulator_stim'; then
+if nm -D "$TARGET_LIB" | grep 'stim'; then
   echo "ERROR: Found unexpected exported symbols containing 'stim' in $TARGET_LIB" >&2
   echo '--- Offending Symbols ---' >&2
-  nm -D "$TARGET_LIB" | grep 'stim' | grep -v 'getCircuitSimulator_stim' >&2
+  nm -D "$TARGET_LIB" | grep 'stim' >&2
   echo '-------------------------' >&2
   exit 1
 fi

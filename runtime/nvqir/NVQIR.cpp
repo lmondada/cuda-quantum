@@ -11,11 +11,9 @@
 #include "QIRTypes.h"
 #include "common/ExecutionContext.h"
 #include "common/Logger.h"
-#include "common/PluginUtils.h"
-#include "cudaq/platform.h"
+#include "common/RuntimeBackendProvider.h"
 #include "cudaq/qis/qudit.h"
 #include "cudaq/qis/state.h"
-// TODO: do we want to avoid including this here?
 #include "resourcecounter/ResourceCounter.h"
 #include <cmath>
 #include <complex>
@@ -39,10 +37,6 @@
 
 // Is the library initialized?
 thread_local bool initialized = false;
-thread_local bool using_resource_counter = false;
-thread_local nvqir::CircuitSimulator *simulator;
-inline static constexpr std::string_view GetCircuitSimulatorSymbol =
-    "getCircuitSimulator";
 
 // The following maps are used to map Qubits to Results, and Results to boolean
 // values. The pointer values may be integers if they are referring to Base
@@ -52,31 +46,7 @@ static thread_local std::map<Qubit *, Result *> measQB2Res;
 static thread_local std::map<Result *, Qubit *> measRes2QB;
 static thread_local std::map<Result *, Result> measRes2Val;
 
-/// @brief Provide a holder for externally created
-/// CircuitSimulator pointers (like from Python) that
-/// will invoke clone on the simulator when requested, which
-/// in turn will create the simulator if there isn't one on the
-/// current thread, otherwise it will reuse the existing one
-struct ExternallyProvidedSimGenerator {
-  nvqir::CircuitSimulator *simulator;
-  ExternallyProvidedSimGenerator(nvqir::CircuitSimulator *sim)
-      : simulator(sim) {}
-  auto operator()() { return simulator->clone(); }
-};
-static std::unique_ptr<ExternallyProvidedSimGenerator> externSimGenerator;
-
-extern "C" {
-void __nvqir__setCircuitSimulator(nvqir::CircuitSimulator *sim) {
-  simulator = sim;
-  // If we had been given one before, reset the holder
-  if (externSimGenerator) {
-    auto ptr = externSimGenerator.release();
-    delete ptr;
-  }
-  externSimGenerator = std::make_unique<ExternallyProvidedSimGenerator>(sim);
-  CUDAQ_INFO("[runtime] Setting the circuit simulator to {}.", sim->name());
-}
-}
+using SimulatorType = cudaq::RuntimeBackendProvider::SimulatorType;
 
 namespace nvqir {
 
@@ -84,31 +54,30 @@ namespace nvqir {
 /// already.
 /// @return
 CircuitSimulator *getCircuitSimulatorInternal() {
-  if (using_resource_counter)
-    return getResourceCounterSimulator();
-
-  if (simulator)
-    return simulator;
-
-  if (externSimGenerator) {
-    simulator = (*externSimGenerator)();
-    return simulator;
-  }
-
-  simulator = cudaq::getUniquePluginInstance<CircuitSimulator>(
-      GetCircuitSimulatorSymbol);
-  CUDAQ_INFO("Creating the {} backend.", simulator->name());
-  return simulator;
+  return cudaq::RuntimeBackendProvider::getSingleton().getSimulator();
 }
 
-void switchToResourceCounterSimulator() { using_resource_counter = true; }
+using SimulatorType = cudaq::RuntimeBackendProvider::SimulatorType;
+void switchToResourceCounterSimulator() {
+  cudaq::RuntimeBackendProvider::getSingleton().setSimulatorType(
+      SimulatorType::ResourceCounterSimulator);
+}
 
 void stopUsingResourceCounterSimulator() {
-  using_resource_counter = false;
-  getResourceCounterSimulator()->setToZeroState();
+  auto &provider = cudaq::RuntimeBackendProvider::getSingleton();
+  if (provider.getCurrentSimulatorType() ==
+      SimulatorType::ResourceCounterSimulator) {
+    auto sim = static_cast<nvqir::ResourceCounter *>(provider.getSimulator());
+    sim->setToZeroState();
+  }
+  provider.setSimulatorType(SimulatorType::CircuitSimulator);
 }
 
-bool isUsingResourceCounterSimulator() { return using_resource_counter; }
+bool isUsingResourceCounterSimulator() {
+  return cudaq::RuntimeBackendProvider::getSingleton()
+             .getCurrentSimulatorType() ==
+         SimulatorType::ResourceCounterSimulator;
+}
 
 void setRandomSeed(std::size_t seed) {
   getCircuitSimulatorInternal()->setRandomSeed(seed);
