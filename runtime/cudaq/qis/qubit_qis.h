@@ -132,6 +132,7 @@ void oneQubitApplyControlledRange(QubitRange &ctrls, qubit &target) {
                                {cudaq::qubitToQuditInfo(target)});
 }
 
+#ifndef CUDAQ_NO_MLIR_MODE
 #define CUDAQ_QIS_ONE_TARGET_QUBIT_(NAME)                                      \
   namespace types {                                                            \
   struct NAME {                                                                \
@@ -161,6 +162,37 @@ void oneQubitApplyControlledRange(QubitRange &ctrls, qubit &target) {
       NAME<mod>(q);                                                            \
     }                                                                          \
   }
+#else
+#define CUDAQ_QIS_ONE_TARGET_QUBIT_(NAME)                                      \
+  namespace types {                                                            \
+  struct NAME {                                                                \
+    inline static const std::string name{#NAME};                               \
+  };                                                                           \
+  }                                                                            \
+  template <typename mod = base, typename QubitArg>                            \
+  void NAME(QubitArg &arg) {                                                   \
+    __quantum__qis__##NAME(&arg);                                              \
+  }                                                                            \
+  template <typename mod = ctrl, typename QubitRange>                          \
+    requires(std::ranges::range<QubitRange>)                                   \
+  void NAME(QubitRange &ctrls, qubit &target) {                                \
+    oneQubitApplyControlledRange<qubit_op::NAME##Op, mod>(ctrls, target);      \
+  }                                                                            \
+  template <typename mod = base, typename QubitRange>                          \
+    requires(std::ranges::range<QubitRange>)                                   \
+  void NAME(QubitRange &qr) {                                                  \
+    for (auto &q : qr) {                                                       \
+      NAME<mod>(q);                                                            \
+    }                                                                          \
+  }                                                                            \
+  template <typename mod = base, typename QubitRange>                          \
+    requires(std::ranges::range<QubitRange>)                                   \
+  void NAME(QubitRange &&qr) {                                                 \
+    for (auto &q : qr) {                                                       \
+      NAME<mod>(q);                                                            \
+    }                                                                          \
+  }
+#endif
 
 // Instantiate the above 3 functions for the default logical gate set
 CUDAQ_QIS_ONE_TARGET_QUBIT_(h)
@@ -251,34 +283,16 @@ struct u3 {
 };
 } // namespace types
 
-template <typename mod = base, typename ScalarAngle, typename... QubitArgs>
-void u3(ScalarAngle theta, ScalarAngle phi, ScalarAngle lambda,
-        QubitArgs &...args) {
-  static_assert(std::conjunction<std::is_same<qubit, QubitArgs>...>::value,
-                "Cannot operate on a qudit with Levels != 2");
-
-  std::vector<ScalarAngle> parameters{theta, phi, lambda};
-
-  // Map the qubits to their unique ids and pack them into a std::array
-  constexpr std::size_t nArgs = sizeof...(QubitArgs);
-  std::vector<QuditInfo> targets{qubitToQuditInfo(args)...};
-
-  // If there are more than one qubits and mod == base, then
-  // we just want to apply the same gate to all qubits provided
-  if constexpr (nArgs > 1 && std::is_same_v<mod, base>) {
-    for (auto &targetId : targets)
-      getExecutionManager()->apply("u3", parameters, {}, {targetId});
-    return;
-  }
-
-  // If we are here, then mod must be control or adjoint
-  // Extract the controls and the target
-  std::vector<QuditInfo> controls(targets.begin(), targets.begin() + nArgs - 1);
-
-  // Apply the gate
-  getExecutionManager()->apply("u3", parameters, controls, {targets.back()},
-                               std::is_same_v<mod, adj>);
+#ifndef CUDAQ_NO_MLIR_MODE
+template <typename mod = base, typename ScalarAngle, typename QubitArg>
+void u3(ScalarAngle theta, ScalarAngle phi, ScalarAngle lambda, QubitArg &arg);
+#else
+template <typename mod = base, typename ScalarAngle, typename QubitArg>
+void u3(ScalarAngle theta, ScalarAngle phi, ScalarAngle lambda, QubitArg &arg) {
+  __quantum__qis__u3(theta, phi, lambda, &arg);
 }
+#endif
+
 template <typename mod = ctrl, typename ScalarAngle, typename QubitRange>
   requires(std::ranges::range<QubitRange>)
 void u3(ScalarAngle theta, ScalarAngle phi, ScalarAngle lambda,
@@ -333,6 +347,7 @@ void swap(QuantumRegister &ctrls, qubit &src, qubit &target) {
 }
 
 // Define common 2 qubit operations.
+#ifndef CUDAQ_NO_MLIR_MODE
 inline void cnot(qubit &q, qubit &r) { x<cudaq::ctrl>(q, r); }
 inline void cx(qubit &q, qubit &r) { x<cudaq::ctrl>(q, r); }
 inline void cy(qubit &q, qubit &r) { y<cudaq::ctrl>(q, r); }
@@ -489,6 +504,10 @@ std::vector<measure_result> mz(qubit &q, Qs &&...qs) {
   }
   return result;
 }
+#else
+inline void cnot(Qubit &q, Qubit &r) { __quantum__qis__cnot(&q, &r); }
+inline void cx(Qubit &q, Qubit &r) { __quantum__qis__cnot(&q, &r); }
+#endif
 
 namespace support {
 // Helpers to deal with the `vector<bool>` specialized template type.
@@ -585,10 +604,15 @@ void control(QuantumKernel &&kernel,
 template <typename QuantumKernel, typename... Args>
   requires isCallableVoidKernel<QuantumKernel, Args...>
 void adjoint(QuantumKernel &&kernel, Args &&...args) {
+#ifndef CUDAQ_NO_MLIR_MODE
   // static_assert(true, "adj not implemented yet.");
   getExecutionManager()->startAdjointRegion();
   kernel(std::forward<Args>(args)...);
   getExecutionManager()->endAdjointRegion();
+#else
+  static_assert(sizeof(QuantumKernel) == 0,
+                "adjoint not supported in library mode.");
+#endif
 }
 
 /// Instantiate this type to affect C A C^dag, where the user
@@ -778,7 +802,7 @@ void applyQuantumOperation(const std::string &gateName,
         "cudaq does not support broadcast for multi-qubit operations.");
 
   // Operation on correct number of targets, no controls, possible broadcast
-  if ((std::is_same_v<mod, base> || std::is_same_v<mod, adj>)&&NumT == 1) {
+  if ((std::is_same_v<mod, base> || std::is_same_v<mod, adj>) && NumT == 1) {
     for (auto &qubit : qubits)
       getExecutionManager()->apply(gateName, parameters, {}, {qubit},
                                    std::is_same_v<mod, adj>);
