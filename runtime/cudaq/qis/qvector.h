@@ -12,7 +12,14 @@
 #include "cudaq/qis/qview.h"
 #include "cudaq/qis/state.h"
 
+// Forward declarations
+class Array;
+struct Qubit;
+using Result = bool;
+
 namespace cudaq {
+
+#ifndef CUDAQ_NO_MLIR_MODE
 
 /// @brief A `qvector` is an owning, dynamically sized container for qudits.
 /// The semantics of the `qvector` follows that of a `std::vector` for qudits.
@@ -23,25 +30,103 @@ public:
   /// @brief Useful typedef indicating the underlying qudit type
   using value_type = qudit<Levels>;
 
-private:
-  /// @brief Reference to the held / owned vector of qudits.
-  std::vector<value_type> qudits;
-
-public:
   /// @brief Construct a `qvector` with `size` qudits in the |0> state.
-  qvector(std::size_t size) : qudits(size) {}
+  qvector(std::size_t size);
 
   /// @cond
   /// Nullary constructor
   /// meant to be used with `kernel_builder<cudaq::qvector<>>`
-  qvector() : qudits(1) {}
+  qvector();
   /// @endcond
 
   /// @brief Construct a `qvector` from an input state vector.
   /// The number of qubits is determined by the size of the input vector.
   /// If `validate` is set, it will check the norm of input state vector.
-  explicit qvector(const std::vector<complex> &vector, bool validate)
-      : qudits(std::log2(vector.size())) {
+  explicit qvector(const std::vector<complex> &vector, bool validate);
+
+  qvector(const std::vector<complex> &vector);
+
+  qvector(const std::vector<double> &vector);
+  qvector(std::vector<double> &&vector);
+  qvector(const std::initializer_list<double> &list);
+  qvector(const std::vector<float> &vector);
+  qvector(std::vector<float> &&vector);
+  qvector(const std::initializer_list<float> &list);
+  qvector(const std::initializer_list<complex> &list);
+
+  //===--------------------------------------------------------------------===//
+  // qvector with an initial state
+  //===--------------------------------------------------------------------===//
+  /// @brief Construct a `qvector` from a pre-existing `state`.
+  /// This `state` could be constructed with `state::from_data` or retrieved
+  /// from an cudaq::get_state.
+  qvector(const state &state);
+  qvector(const state *ptr);
+  qvector(state *ptr);
+  qvector(state &s);
+
+  /// @brief `qvectors` cannot be copied
+  qvector(qvector const &);
+
+  /// @brief `qvectors` cannot be moved
+  qvector(qvector &&);
+
+  /// @brief `qvectors` cannot be copy assigned.
+  qvector &operator=(const qvector &);
+
+  /// @brief Iterator interface, begin.
+  auto begin();
+
+  /// @brief Iterator interface, end.
+  auto end();
+
+  /// @brief Returns the qudit at `idx`.
+  value_type &operator[](const std::size_t idx);
+
+  /// @brief Returns the `[0, count)` qudits as a non-owning `qview`.
+  qview<Levels> front(std::size_t count);
+
+  /// @brief Returns the first qudit.
+  value_type &front();
+
+  /// @brief Returns the `[count, size())` qudits as a non-owning `qview`
+  qview<Levels> back(std::size_t count);
+
+  /// @brief Returns the last qudit.
+  value_type &back();
+
+  /// @brief Returns the `[start, start+size)` qudits as a non-owning `qview`
+  qview<Levels> slice(std::size_t start, std::size_t size);
+
+  /// @brief Returns the number of contained qudits.
+  std::size_t size() const;
+
+  /// @brief Destroys all contained qudits. Postcondition: `size() == 0`.
+  void clear();
+};
+
+#else
+template <std::size_t Levels = 2>
+class qvector {
+private:
+  /// @brief Reference to the held / owned vector of qudits.
+  Array *qubitsArray;
+
+public:
+  /// @brief Construct a `qvector` with `size` qudits in the |0> state.
+  qvector(std::size_t size)
+      : qubitsArray(__quantum__rt__qubit_allocate_array(size)) {}
+
+  /// @cond
+  /// Nullary constructor
+  /// meant to be used with `kernel_builder<cudaq::qvector<>>`
+  qvector() { qubitsArray = nullptr; }
+  /// @endcond
+
+  /// @brief Construct a `qvector` from an input state vector.
+  /// The number of qubits is determined by the size of the input vector.
+  /// If `validate` is set, it will check the norm of input state vector.
+  explicit qvector(const std::vector<complex> &vector, bool validate) {
     if (Levels == 2) {
       if (vector.empty() || (vector.size() & (vector.size() - 1)) != 0)
         throw std::runtime_error(
@@ -57,14 +142,9 @@ public:
       if (std::fabs(1.0 - norm) > 1e-4)
         throw std::runtime_error("Invalid vector norm for qudit allocation.");
     }
-    std::vector<QuditInfo> targets;
-    for (auto &q : qudits)
-      targets.emplace_back(QuditInfo{Levels, q.id()});
-
-    auto precision = std::is_same_v<complex::value_type, float>
-                         ? simulation_precision::fp32
-                         : simulation_precision::fp64;
-    getExecutionManager()->initializeState(targets, vector.data(), precision);
+    std::size_t numQubits = std::log2(vector.size());
+    qubitsArray = __quantum__rt__qubit_allocate_array_with_state_complex64(
+        numQubits, vector.data());
   }
   qvector(const std::vector<complex> &vector)
       : qvector(vector, /*validate=*/false){};
@@ -84,22 +164,7 @@ public:
   qvector(const std::initializer_list<complex> &list)
       : qvector(std::vector<complex>{list.begin(), list.end()}) {}
 
-  //===--------------------------------------------------------------------===//
-  // qvector with an initial state
-  //===--------------------------------------------------------------------===//
-  /// @brief Construct a `qvector` from a pre-existing `state`.
-  /// This `state` could be constructed with `state::from_data` or retrieved
-  /// from an cudaq::get_state.
-  qvector(const state &state) : qudits(state.get_num_qubits()) {
-    std::vector<QuditInfo> targets;
-    for (auto &q : qudits)
-      targets.emplace_back(QuditInfo{Levels, q.id()});
-    // Note: the internal state data will be cloned by the simulator backend.
-    getExecutionManager()->initializeState(targets, state.internal.get());
-  }
-  qvector(const state *ptr) : qvector(*ptr) {}
-  qvector(state *ptr) : qvector(*ptr) {}
-  qvector(state &s) : qvector(const_cast<const state &>(s)) {}
+  ~qvector() { __quantum__rt__qubit_release_array(qubitsArray); }
 
   /// @brief `qvectors` cannot be copied
   qvector(qvector const &) = delete;
@@ -110,41 +175,24 @@ public:
   /// @brief `qvectors` cannot be copy assigned.
   qvector &operator=(const qvector &) = delete;
 
-  /// @brief Iterator interface, begin.
-  auto begin() { return qudits.begin(); }
-
-  /// @brief Iterator interface, end.
-  auto end() { return qudits.end(); }
-
-  /// @brief Returns the qudit at `idx`.
-  value_type &operator[](const std::size_t idx) { return qudits[idx]; }
-
-  /// @brief Returns the `[0, count)` qudits as a non-owning `qview`.
-  qview<Levels> front(std::size_t count) {
-    return std::span(qudits).subspan(0, count);
+  /// @brief Returns the qubit at `idx`.
+  Qubit &operator[](const std::size_t idx) {
+    return *reinterpret_cast<Qubit *>(
+        __quantum__rt__array_get_element_ptr_1d(qubitsArray, idx));
   }
 
   /// @brief Returns the first qudit.
-  value_type &front() { return qudits.front(); }
-
-  /// @brief Returns the `[count, size())` qudits as a non-owning `qview`
-  qview<Levels> back(std::size_t count) {
-    return std::span(qudits).subspan(size() - count, count);
+  Qubit &front() {
+    return *reinterpret_cast<Qubit *>(
+        __quantum__rt__array_get_element_ptr_1d(qubitsArray, 0));
   }
-
-  /// @brief Returns the last qudit.
-  value_type &back() { return qudits.back(); }
-
-  /// @brief Returns the `[start, start+size)` qudits as a non-owning `qview`
-  qview<Levels> slice(std::size_t start, std::size_t size) {
-    return std::span(qudits).subspan(start, size);
-  }
-
-  /// @brief Returns the number of contained qudits.
-  std::size_t size() const { return qudits.size(); }
 
   /// @brief Destroys all contained qudits. Postcondition: `size() == 0`.
-  void clear() { qudits.clear(); }
+  void clear() {
+    __quantum__rt__qubit_release_array(qubitsArray);
+    qubitsArray = nullptr;
+  }
 };
+#endif
 
 } // namespace cudaq

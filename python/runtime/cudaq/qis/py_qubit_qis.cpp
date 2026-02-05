@@ -68,46 +68,49 @@ void bindQIS(py::module &mod) {
            py::return_value_policy::reference,
            "Return the qubit at the given index.");
 
-  py::class_<qvector<>>(
-      mod, "qvector",
-      "An owning, dynamically sized container for qubits. The semantics of the "
-      "`qvector` follows that of a `std::vector` or `list` for qubits.")
-      .def(py::init<std::size_t>())
-      .def(
-          "size", [](qvector<> &self) { return self.size(); },
-          "Return the number of qubits in this `qvector`.")
-      .def(
-          "front",
-          [](qvector<> &self, std::size_t count) { return self.front(count); },
-          "Return first `count` qubits in this `qvector` as a non-owning view.")
-      .def(
-          "front", [](qvector<> &self) -> qubit & { return self.front(); },
-          py::return_value_policy::reference,
-          "Return first qubit in this `qvector`.")
-      .def(
-          "back", [](qvector<> &self) -> qubit & { return self.back(); },
-          py::return_value_policy::reference,
-          "Return the last qubit in this `qvector`.")
-      .def(
-          "back",
-          [](qvector<> &self, std::size_t count) { return self.back(count); },
-          "Return the last `count` qubits in this `qvector` as a non-owning "
-          "view.")
-      .def(
-          "__iter__",
-          [](qvector<> &self) {
-            return py::make_iterator(self.begin(), self.end());
-          },
-          py::keep_alive<0, 1>())
-      .def(
-          "slice",
-          [](qvector<> &self, std::size_t start, std::size_t count) {
-            return self.slice(start, count);
-          },
-          "Return the `[start, start+count]` qudits as a non-owning qview.")
-      .def("__getitem__", &qvector<2>::operator[],
-           py::return_value_policy::reference,
-           "Return the qubit at the given index.");
+  //   py::class_<qvector<>>(
+  //       mod, "qvector",
+  //       "An owning, dynamically sized container for qubits. The semantics of
+  //       the "
+  //       "`qvector` follows that of a `std::vector` or `list` for qubits.")
+  //       .def(py::init<std::size_t>())
+  //       .def(
+  //           "size", [](qvector<> &self) { return self.size(); },
+  //           "Return the number of qubits in this `qvector`.")
+  //       .def(
+  //           "front",
+  //           [](qvector<> &self, std::size_t count) { return
+  //           self.front(count); }, "Return first `count` qubits in this
+  //           `qvector` as a non-owning view.")
+  //       .def(
+  //           "front", [](qvector<> &self) -> qubit & { return self.front(); },
+  //           py::return_value_policy::reference,
+  //           "Return first qubit in this `qvector`.")
+  //       .def(
+  //           "back", [](qvector<> &self) -> qubit & { return self.back(); },
+  //           py::return_value_policy::reference,
+  //           "Return the last qubit in this `qvector`.")
+  //       .def(
+  //           "back",
+  //           [](qvector<> &self, std::size_t count) { return self.back(count);
+  //           }, "Return the last `count` qubits in this `qvector` as a
+  //           non-owning " "view.")
+  //       .def(
+  //           "__iter__",
+  //           [](qvector<> &self) {
+  //             return py::make_iterator(self.begin(), self.end());
+  //           },
+  //           py::keep_alive<0, 1>())
+  //       .def(
+  //           "slice",
+  //           [](qvector<> &self, std::size_t start, std::size_t count) {
+  //             return self.slice(start, count);
+  //           },
+  //           "Return the `[start, start+count]` qudits as a non-owning
+  //           qview.")
+  //       .def("__getitem__", &qvector<2>::operator[],
+  //            py::return_value_policy::reference,
+  //            "Return the qubit at the given index.");
 
   py::class_<pauli_word>(mod, "pauli_word",
                          "The `pauli_word` is a thin wrapper on a Pauli tensor "

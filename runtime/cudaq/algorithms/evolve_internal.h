@@ -36,7 +36,9 @@ evolve_result evolve(state initial_state, QuantumKernel &&kernel,
   if (observables.size() == 0)
     return evolve_result(final_state);
 
-  auto prepare_state = [final_state]() { auto qs = qvector<2>(final_state); };
+  auto prepare_state = [final_state]() {
+    [[maybe_unused]] auto qs = qvector<2>(final_state);
+  };
   std::vector<observe_result> final_expectations;
   for (auto observable : observables) {
     shots_count <= 0
@@ -74,7 +76,7 @@ evolve_result evolve(state initial_state, std::vector<QuantumKernel> &kernels,
     if (observables.size() > 0) {
       std::vector<observe_result> expectations = {};
       auto prepare_state = [intermediate_states]() {
-        auto qs = qvector<2>(intermediate_states.back());
+        [[maybe_unused]] auto qs = qvector<2>(intermediate_states.back());
       };
       for (auto observable : observables[++step_idx]) {
         shots_count <= 0
