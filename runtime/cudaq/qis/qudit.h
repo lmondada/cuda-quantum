@@ -28,42 +28,17 @@ class qudit {
   bool isNegativeControl = false;
 
 public:
-  /// Construct a qudit, will allocated a new unique index
-  qudit() : idx(getExecutionManager()->allocateQudit(n_levels())) {}
+  /// Construct a qudit, will allocate a new unique index
+  qudit();
 
-  qudit(const std::vector<complex> &state) : qudit() {
-    if (state.size() != Levels)
-      throw std::runtime_error(
-          "Invalid number of state vector elements for qudit allocation (" +
-          std::to_string(state.size()) + ").");
+  qudit(const std::vector<complex> &state);
 
-    auto norm = std::inner_product(
-                    state.begin(), state.end(), state.begin(), complex{0., 0.},
-                    [](auto a, auto b) { return a + b; },
-                    [](auto a, auto b) { return std::conj(a) * b; })
-                    .real();
-    if (std::fabs(1.0 - norm) > 1e-4)
-      throw std::runtime_error("Invalid vector norm for qudit allocation.");
+  qudit(const std::initializer_list<complex> &list);
 
-    // Perform the initialization
-    auto precision = std::is_same_v<complex::value_type, float>
-                         ? simulation_precision::fp32
-                         : simulation_precision::fp64;
-    getExecutionManager()->initializeState({QuditInfo(n_levels(), idx)},
-                                           state.data(), precision);
-  }
-
-  qudit(const std::initializer_list<complex> &list)
-      : qudit({list.begin(), list.end()}) {}
-
-  qudit(const state &state) : qudit() {
-    // Note: the internal state data will be cloned by the simulator backend.
-    std::vector<QuditInfo> v{QuditInfo{Levels, id()}};
-    getExecutionManager()->initializeState(v, state.internal.get());
-  }
-  qudit(const state *s) : qudit(*s) {}
-  qudit(state *s) : qudit(const_cast<const state *>(s)) {}
-  qudit(state &s) : qudit(const_cast<const state &>(s)) {}
+  qudit(const cudaq::state &state);
+  qudit(const cudaq::state *s);
+  qudit(cudaq::state *s);
+  qudit(cudaq::state &s);
 
   // Qudits cannot be copied
   qudit(const qudit &q) = delete;
@@ -92,10 +67,14 @@ public:
   qudit<Levels> &operator!() { return negate(); }
 
   // Destructor, return the qudit so it can be reused
-  ~qudit() { getExecutionManager()->returnQudit({n_levels(), idx}); }
+  ~qudit();
 };
 
 // A qubit is a qudit with 2 levels.
 using qubit = qudit<2>;
 
 } // namespace cudaq
+
+#ifdef CUDAQ_LIBRARY_MODE
+#include "cudaq/polyfill/qis/qudit_impl.h"
+#endif
