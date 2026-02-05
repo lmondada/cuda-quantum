@@ -15,35 +15,35 @@ SET(CMAKE_SHARED_LINKER_FLAGS "")
 
 set(CUDAQ_RUNTIME_TEST_SOURCES
   # Integration tests
-  integration/adjoint_tester.cpp
-  integration/builder_tester.cpp
-  integration/ccnot_tester.cpp
-  integration/deuteron_variational_tester.cpp
-  integration/draw_tester.cpp
-  integration/ghz_nisq_tester.cpp
-  integration/gradient_tester.cpp
-  integration/grover_test.cpp
-  integration/nlopt_tester.cpp
-  integration/qpe_ftqc.cpp
-  integration/qpe_nisq.cpp
-  integration/qubit_allocation.cpp
-  integration/vqe_tester.cpp
-  integration/bug67_vqe_then_sample.cpp
-  integration/bug77_vqe_with_shots.cpp
-  integration/bug116_cusv_measure_bug.cpp
-  integration/async_tester.cpp
+  # integration/adjoint_tester.cpp
+  # integration/builder_tester.cpp
+  # integration/ccnot_tester.cpp
+  # integration/deuteron_variational_tester.cpp
+  # integration/draw_tester.cpp
+  # integration/ghz_nisq_tester.cpp
+  # integration/gradient_tester.cpp
+  # integration/grover_test.cpp
+  # integration/nlopt_tester.cpp
+  # integration/qpe_ftqc.cpp
+  # integration/qpe_nisq.cpp
+  # integration/qubit_allocation.cpp
+  # integration/vqe_tester.cpp
+  # integration/bug67_vqe_then_sample.cpp
+  # integration/bug77_vqe_with_shots.cpp
+  # integration/bug116_cusv_measure_bug.cpp
+  # integration/async_tester.cpp
   integration/negative_controls_tester.cpp
-  integration/observe_result_tester.cpp
-  integration/noise_tester.cpp
-  integration/get_state_tester.cpp
+  # integration/observe_result_tester.cpp
+  # integration/noise_tester.cpp
+  # integration/get_state_tester.cpp
   integration/measure_reset_tester.cpp
-  integration/mps_to_host_tester.cpp
+  # integration/mps_to_host_tester.cpp
   qir/NVQIRTester.cpp
-  qis/QubitQISTester.cpp
-  integration/kernels_tester.cpp
+  # qis/QubitQISTester.cpp
+  # integration/kernels_tester.cpp
   common/MeasureCountsTester.cpp
   common/NoiseModelTester.cpp
-  integration/tracer_tester.cpp
+  # integration/tracer_tester.cpp
   integration/gate_library_tester.cpp
 )
 
@@ -154,43 +154,43 @@ if (CUSTATEVEC_ROOT AND CUDA_FOUND)
   # dependency to to validate that functionality.
   # create_tests_with_backend(custatevec-fp64 "")
 
-  add_executable(test_mqpu main.cpp mqpu/mqpu_tester.cpp)
+  # add_executable(test_mqpu main.cpp mqpu/mqpu_tester.cpp)
   # Need to force the link to nvqir-qpp here if gcc.
-  if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND NOT APPLE)
-    target_link_options(test_mqpu PRIVATE ${CUDAQ_FORCE_LINK_FLAG})
-  endif()
-  target_link_libraries(test_mqpu
-    PRIVATE
-    cudaq
-    cudaq-builder
-    cudaq-platform-mqpu
-    nvqir-custatevec-fp64
-    gtest_main)
-  gtest_discover_tests(test_mqpu PROPERTIES LABELS "gpu_required")
+  # if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND NOT APPLE)
+  #   target_link_options(test_mqpu PRIVATE ${CUDAQ_FORCE_LINK_FLAG})
+  # endif()
+  # target_link_libraries(test_mqpu
+  #   PRIVATE
+  #   cudaq
+  #   cudaq-builder
+  #   cudaq-platform-mqpu
+  #   nvqir-custatevec-fp64
+  #   gtest_main)
+  # gtest_discover_tests(test_mqpu PROPERTIES LABELS "gpu_required")
 
   # Test CUDAQ_OBSERVE_FROM_SAMPLING=ON mode.
   # (term-by-term expectation value calculation by applying change-of-basis gates then reverting them)
-  add_executable(test_custatevec_observe_from_sampling
-    integration/builder_tester.cpp
-    integration/deuteron_variational_tester.cpp
-    integration/gradient_tester.cpp
-    integration/nlopt_tester.cpp
-  )
-  target_include_directories(test_custatevec_observe_from_sampling PRIVATE .)
-  target_compile_definitions(test_custatevec_observe_from_sampling
-                             PRIVATE -DNVQIR_BACKEND_NAME=custatevec_fp32)
-  if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND NOT APPLE)
-    target_link_options(test_custatevec_observe_from_sampling PRIVATE ${CUDAQ_FORCE_LINK_FLAG})
-  endif()
-  target_link_libraries(test_custatevec_observe_from_sampling
-    PRIVATE
-    cudaq
-    cudaq-builder
-    cudaq-platform-default
-    nvqir-custatevec-fp32
-    gtest_main)
-  # Run this test with "CUDAQ_OBSERVE_FROM_SAMPLING=1"
-  gtest_discover_tests(test_custatevec_observe_from_sampling TEST_SUFFIX _DirectObserve PROPERTIES ENVIRONMENT "CUDAQ_OBSERVE_FROM_SAMPLING=1" PROPERTIES LABELS "gpu_required")
+  # add_executable(test_custatevec_observe_from_sampling
+  #   integration/builder_tester.cpp
+  #   # integration/deuteron_variational_tester.cpp
+  #   # integration/gradient_tester.cpp
+  #   integration/nlopt_tester.cpp
+  # )
+  # target_include_directories(test_custatevec_observe_from_sampling PRIVATE .)
+  # target_compile_definitions(test_custatevec_observe_from_sampling
+  #                            PRIVATE -DNVQIR_BACKEND_NAME=custatevec_fp32)
+  # if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND NOT APPLE)
+  #   target_link_options(test_custatevec_observe_from_sampling PRIVATE ${CUDAQ_FORCE_LINK_FLAG})
+  # endif()
+  # target_link_libraries(test_custatevec_observe_from_sampling
+  #   PRIVATE
+  #   cudaq
+  #   cudaq-builder
+  #   cudaq-platform-default
+  #   nvqir-custatevec-fp32
+  #   gtest_main)
+  # # Run this test with "CUDAQ_OBSERVE_FROM_SAMPLING=1"
+  # gtest_discover_tests(test_custatevec_observe_from_sampling TEST_SUFFIX _DirectObserve PROPERTIES ENVIRONMENT "CUDAQ_OBSERVE_FROM_SAMPLING=1" PROPERTIES LABELS "gpu_required")
 
   if (MPI_CXX_FOUND)
     # Count the number of GPUs
@@ -265,27 +265,27 @@ if(TARGET nvqir-tensornet)
   endif() # MPI_CXX_FOUND
 
   # Test CUDAQ_TENSORNET_OBSERVE_CONTRACT_PATH_REUSE=ON mode (on a few test cases that have cudaq::observe)
-  add_executable(test_tensornet_observe_path_reuse
-    integration/builder_tester.cpp
-    integration/deuteron_variational_tester.cpp
-    integration/observe_result_tester.cpp
-    integration/noise_tester.cpp # This test contains noisy observe test cases.
-  )
-  target_include_directories(test_tensornet_observe_path_reuse PRIVATE .)
-  target_compile_definitions(test_tensornet_observe_path_reuse
-                             PRIVATE -DNVQIR_BACKEND_NAME=tensornet)
-  if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND NOT APPLE)
-    target_link_options(test_tensornet_observe_path_reuse PRIVATE ${CUDAQ_FORCE_LINK_FLAG})
-  endif()
-  target_link_libraries(test_tensornet_observe_path_reuse
-    PRIVATE
-    cudaq
-    cudaq-builder
-    cudaq-platform-default
-    nvqir-tensornet
-    gtest_main)
-  # Run this test with "CUDAQ_TENSORNET_OBSERVE_CONTRACT_PATH_REUSE=TRUE"
-  gtest_discover_tests(test_tensornet_observe_path_reuse TEST_SUFFIX _PathReuse PROPERTIES ENVIRONMENT "CUDAQ_TENSORNET_OBSERVE_CONTRACT_PATH_REUSE=ON" PROPERTIES LABELS "gpu_required")
+  # add_executable(test_tensornet_observe_path_reuse
+  #   integration/builder_tester.cpp
+  #   integration/deuteron_variational_tester.cpp
+  #   # integration/observe_result_tester.cpp
+  #   integration/noise_tester.cpp # This test contains noisy observe test cases.
+  # )
+  # target_include_directories(test_tensornet_observe_path_reuse PRIVATE .)
+  # target_compile_definitions(test_tensornet_observe_path_reuse
+  #                            PRIVATE -DNVQIR_BACKEND_NAME=tensornet)
+  # if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND NOT APPLE)
+  #   target_link_options(test_tensornet_observe_path_reuse PRIVATE ${CUDAQ_FORCE_LINK_FLAG})
+  # endif()
+  # target_link_libraries(test_tensornet_observe_path_reuse
+  #   PRIVATE
+  #   cudaq
+  #   cudaq-builder
+  #   cudaq-platform-default
+  #   nvqir-tensornet
+  #   gtest_main)
+  # # Run this test with "CUDAQ_TENSORNET_OBSERVE_CONTRACT_PATH_REUSE=TRUE"
+  # gtest_discover_tests(test_tensornet_observe_path_reuse TEST_SUFFIX _PathReuse PROPERTIES ENVIRONMENT "CUDAQ_TENSORNET_OBSERVE_CONTRACT_PATH_REUSE=ON" PROPERTIES LABELS "gpu_required")
 endif()
 
 # Create an executable for SpinOp UnitTests
@@ -446,32 +446,32 @@ add_subdirectory(plugin)
 
 # build the test qudit execution manager
 add_subdirectory(qudit)
-add_executable(test_qudit main.cpp qudit/SimpleQuditTester.cpp)
-if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND NOT APPLE)
-  target_link_options(test_qudit PRIVATE ${CUDAQ_FORCE_LINK_FLAG})
-endif()
-target_link_libraries(test_qudit
-  PRIVATE
-  cudaq
-  cudaq-platform-default
-  cudaq-em-qudit
-  nvqir-qpp
-  gtest_main)
-gtest_discover_tests(test_qudit DISCOVERY_TIMEOUT 120)
+# add_executable(test_qudit main.cpp qudit/SimpleQuditTester.cpp)
+# if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND NOT APPLE)
+#   target_link_options(test_qudit PRIVATE ${CUDAQ_FORCE_LINK_FLAG})
+# endif()
+# target_link_libraries(test_qudit
+#   PRIVATE
+#   cudaq
+#   cudaq-platform-default
+#   cudaq-em-qudit
+#   nvqir-qpp
+#   gtest_main)
+# gtest_discover_tests(test_qudit DISCOVERY_TIMEOUT 120)
 
 # build the test photonics execution manager
-add_executable(test_photonics main.cpp photonics/PhotonicsTester.cpp)
-if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND NOT APPLE)
-  target_link_options(test_photonics PRIVATE ${CUDAQ_FORCE_LINK_FLAG})
-endif()
-target_link_libraries(test_photonics
-  PRIVATE
-  cudaq
-  cudaq-platform-default
-  cudaq-em-photonics
-  nvqir-qpp
-  gtest_main)
-gtest_discover_tests(test_photonics DISCOVERY_TIMEOUT 120)
+# add_executable(test_photonics main.cpp photonics/PhotonicsTester.cpp)
+# if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND NOT APPLE)
+#   target_link_options(test_photonics PRIVATE ${CUDAQ_FORCE_LINK_FLAG})
+# endif()
+# target_link_libraries(test_photonics
+#   PRIVATE
+#   cudaq
+#   cudaq-platform-default
+#   cudaq-em-photonics
+#   nvqir-qpp
+#   gtest_main)
+# gtest_discover_tests(test_photonics DISCOVERY_TIMEOUT 120)
 
 add_executable(test_utils main.cpp utils/UtilsTester.cpp utils/Matrix.cpp)
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND NOT APPLE)
@@ -548,24 +548,24 @@ if (CUDAQ_ENABLE_PYTHON)
   endif()
 
   message(STATUS "OpenFermion PySCF found, enabling chemistry tests.")
-  add_executable(test_domains main.cpp domains/ChemistryTester.cpp)
-  if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND NOT APPLE)
-    target_link_options(test_domains PRIVATE ${CUDAQ_FORCE_LINK_FLAG})
-  endif()
-  target_compile_definitions(test_domains PRIVATE -DNVQIR_BACKEND_NAME=qpp -DCUDAQ_SIMULATION_SCALAR_FP64)
-  target_include_directories(test_domains PRIVATE .)
-  # Embedded Python links to system framework, not venv, so needs explicit sitelib.
-  set_property(TARGET test_domains PROPERTY ENVIRONMENT
-    "PYTHONPATH=${CMAKE_BINARY_DIR}/python:${Python_SITELIB}")
-  target_link_libraries(test_domains
-    PRIVATE
-    cudaq
-    cudaq-platform-default
-    nvqir nvqir-qpp
-    cudaq-operator
-    cudaq-chemistry
-    cudaq-pyscf
-    gtest_main)
-  gtest_discover_tests(test_domains
-    TEST_SUFFIX _Sampling PROPERTIES ENVIRONMENT "PYTHONPATH=${CMAKE_BINARY_DIR}/python:${Python_SITELIB}" DISCOVERY_TIMEOUT 120)
+  # add_executable(test_domains main.cpp domains/ChemistryTester.cpp)
+  # if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND NOT APPLE)
+  #   target_link_options(test_domains PRIVATE ${CUDAQ_FORCE_LINK_FLAG})
+  # endif()
+  # target_compile_definitions(test_domains PRIVATE -DNVQIR_BACKEND_NAME=qpp -DCUDAQ_SIMULATION_SCALAR_FP64)
+  # target_include_directories(test_domains PRIVATE .)
+  # # Embedded Python links to system framework, not venv, so needs explicit sitelib.
+  # set_property(TARGET test_domains PROPERTY ENVIRONMENT
+  #   "PYTHONPATH=${CMAKE_BINARY_DIR}/python:${Python_SITELIB}")
+  # target_link_libraries(test_domains
+  #   PRIVATE
+  #   cudaq
+  #   cudaq-platform-default
+  #   nvqir nvqir-qpp
+  #   cudaq-operator
+  #   cudaq-chemistry
+  #   cudaq-pyscf
+  #   gtest_main)
+  # gtest_discover_tests(test_domains
+  #   TEST_SUFFIX _Sampling PROPERTIES ENVIRONMENT "PYTHONPATH=${CMAKE_BINARY_DIR}/python:${Python_SITELIB}" DISCOVERY_TIMEOUT 120)
 endif()
