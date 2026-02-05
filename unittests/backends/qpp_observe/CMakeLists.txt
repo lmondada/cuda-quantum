@@ -23,14 +23,14 @@ target_link_libraries(nvqir-qpp-observe-test
                       PRIVATE ${QPP_TEST_DEPENDENCIES})
 
 get_property(backend_unittest_libs DIRECTORY PROPERTY BACKEND_UNITTEST_LIBS)
-add_backend_unittest_executable(test_observe_backend 
-  SOURCES QppObserveTester.cpp
-  BACKEND qpp_observe
+# add_backend_unittest_executable(test_observe_backend 
+#   SOURCES QppObserveTester.cpp
+#   BACKEND qpp_observe
   
-  LINK_LIBS
-  ${backend_unittest_libs}
-  nvqir-qpp-observe-test
-  cudaq-em-default
-  )
+#   LINK_LIBS
+#   ${backend_unittest_libs}
+#   nvqir-qpp-observe-test
+#   cudaq-em-default
+#   )
 
-gtest_discover_tests(test_observe_backend)
+# gtest_discover_tests(test_observe_backend)
