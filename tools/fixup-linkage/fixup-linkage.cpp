@@ -21,10 +21,13 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/IRReader/IRReader.h"
+#include "llvm/Passes/PassBuilder.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/IPO/GlobalDCE.h"
 
 #include <fstream>
 #include <iostream>
@@ -107,7 +110,28 @@ int main(int argc, char *argv[]) {
     func.setDSOLocal(false);
   }
 
-  // 4. Write the modified module to the output file.
+  // 4. Run LLVM's DCE pass to eliminate now dead kernel-only functions.
+  {
+    // Create and register the analysis managers.
+    llvm::LoopAnalysisManager LAM;
+    llvm::FunctionAnalysisManager FAM;
+    llvm::CGSCCAnalysisManager CGAM;
+    llvm::ModuleAnalysisManager MAM;
+
+    llvm::PassBuilder PB;
+    PB.registerModuleAnalyses(MAM);
+    PB.registerCGSCCAnalyses(CGAM);
+    PB.registerFunctionAnalyses(FAM);
+    PB.registerLoopAnalyses(LAM);
+    PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
+
+    // Run the actual DCE pass.
+    llvm::ModulePassManager MPM;
+    MPM.addPass(llvm::GlobalDCEPass());
+    MPM.run(*module, MAM);
+  }
+
+  // 5. Write the modified module to the output file.
   std::error_code ec;
   llvm::raw_fd_ostream outFile(argv[3], ec, llvm::sys::fs::OF_Text);
   if (ec) {
