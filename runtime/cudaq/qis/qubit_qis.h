@@ -277,27 +277,14 @@ concept takes_qvector = signature<T, void(qvector<> &)>;
 // Control the given cudaq kernel on the given control qubit
 template <typename QuantumKernel, typename... Args>
   requires isCallableVoidKernel<QuantumKernel, Args...>
-void control(QuantumKernel &&kernel, qubit &control, Args &&...args) {
-  std::vector<std::size_t> ctrls{control.id()};
-  getExecutionManager()->startCtrlRegion(ctrls);
-  kernel(std::forward<Args>(args)...);
-  getExecutionManager()->endCtrlRegion(ctrls.size());
-}
+void control(QuantumKernel &&kernel, qubit &control, Args &&...args);
 
 // Control the given cudaq kernel on the given register of control qubits
 template <typename QuantumKernel, typename QuantumRegister, typename... Args>
   requires std::ranges::range<QuantumRegister> &&
            isCallableVoidKernel<QuantumKernel, Args...>
 void control(QuantumKernel &&kernel, QuantumRegister &&ctrl_qubits,
-             Args &&...args) {
-  std::vector<std::size_t> ctrls;
-  for (std::size_t i = 0; i < ctrl_qubits.size(); i++) {
-    ctrls.push_back(ctrl_qubits[i].id());
-  }
-  getExecutionManager()->startCtrlRegion(ctrls);
-  kernel(std::forward<Args>(args)...);
-  getExecutionManager()->endCtrlRegion(ctrls.size());
-}
+             Args &&...args);
 
 // Control the given cudaq kernel on the given list of references to control
 // qubits.
@@ -305,49 +292,26 @@ template <typename QuantumKernel, typename... Args>
   requires isCallableVoidKernel<QuantumKernel, Args...>
 void control(QuantumKernel &&kernel,
              std::vector<std::reference_wrapper<qubit>> &&ctrl_qubits,
-             Args &&...args) {
-  std::vector<std::size_t> ctrls;
-  for (auto &cq : ctrl_qubits) {
-    ctrls.push_back(cq.get().id());
-  }
-  getExecutionManager()->startCtrlRegion(ctrls);
-  kernel(std::forward<Args>(args)...);
-  getExecutionManager()->endCtrlRegion(ctrls.size());
-}
+             Args &&...args);
 
 // Apply the adjoint of the given cudaq kernel
 template <typename QuantumKernel, typename... Args>
   requires isCallableVoidKernel<QuantumKernel, Args...>
-void adjoint(QuantumKernel &&kernel, Args &&...args) {
-  // static_assert(true, "adj not implemented yet.");
-  getExecutionManager()->startAdjointRegion();
-  kernel(std::forward<Args>(args)...);
-  getExecutionManager()->endAdjointRegion();
-}
+void adjoint(QuantumKernel &&kernel, Args &&...args);
 
 /// Instantiate this type to affect C A C^dag, where the user
 /// provides cudaq Kernels C and A (compute, action).
-// struct compute_action {
 template <typename ComputeFunction, typename ActionFunction>
   requires isCallableVoidKernel<ComputeFunction> &&
            isCallableVoidKernel<ActionFunction>
-void compute_action(ComputeFunction &&c, ActionFunction &&a) {
-  c();
-  a();
-  adjoint(c);
-}
+void compute_action(ComputeFunction &&c, ActionFunction &&a);
 
 /// Instantiate this type to affect C^dag A C, where the user
 /// provides cudaq Kernels C and A (compute, action).
-// struct compute_dag_action {
 template <typename ComputeFunction, typename ActionFunction>
   requires isCallableVoidKernel<ComputeFunction> &&
            isCallableVoidKernel<ActionFunction>
-void compute_dag_action(ComputeFunction &&c, ActionFunction &&a) {
-  adjoint(c);
-  a();
-  c();
-}
+void compute_dag_action(ComputeFunction &&c, ActionFunction &&a);
 
 /// Helper function to extract a slice of a `std::vector<T>` to be used within
 /// CUDA-Q kernels.
@@ -564,43 +528,7 @@ template <typename T, typename... RotationT, typename... QuantumT,
           std::size_t NumPProvided = sizeof...(RotationT),
           std::enable_if_t<T::num_parameters == NumPProvided, std::size_t> = 0>
 void applyNoiseImpl(const std::tuple<RotationT...> &paramTuple,
-                    const std::tuple<QuantumT...> &quantumTuple) {
-  auto &platform = get_platform();
-  const auto *noiseModel = platform.get_noise();
-
-  // per-spec, no noise model provided, emit warning, no application
-  if (!noiseModel)
-    return details::warn("apply_noise called but no noise model provided.");
-
-  std::vector<double> parameters;
-  cudaq::tuple_for_each(paramTuple,
-                        [&](auto &&element) { parameters.push_back(element); });
-  std::vector<QuditInfo> qubits;
-  // auto argTuple = std::forward_as_tuple(args...);
-  cudaq::tuple_for_each(quantumTuple, [&qubits](auto &&element) {
-    if constexpr (details::IsQubitType<decltype(element)>::value) {
-      qubits.push_back(qubitToQuditInfo(element));
-    } else {
-      for (auto &qq : element) {
-        qubits.push_back(qubitToQuditInfo(qq));
-      }
-    }
-  });
-
-  if (qubits.size() != T::num_targets) {
-    throw std::invalid_argument("Incorrect number of target qubits. Expected " +
-                                std::to_string(T::num_targets) + ", got " +
-                                std::to_string(qubits.size()));
-  }
-
-  auto channel = noiseModel->template get_channel<T>(parameters);
-  // per spec - caller provides noise model, but channel not registered,
-  // warning generated, no channel application.
-  if (channel.empty())
-    return;
-
-  getExecutionManager()->applyNoise(channel, qubits);
-}
+                    const std::tuple<QuantumT...> &quantumTuple);
 } // namespace cudaq::details
 
 namespace cudaq {
@@ -619,34 +547,7 @@ constexpr bool any_float = std::disjunction_v<
 template <typename T, typename... Q>
   requires(std::derived_from<T, cudaq::kraus_channel> && !any_float<Q...> &&
            TARGET_OK_FOR_APPLY_NOISE)
-void apply_noise(const std::vector<double> &params, Q &&...args) {
-  auto &platform = get_platform();
-  const auto *noiseModel = platform.get_noise();
-
-  // per-spec, no noise model provided, emit warning, no application
-  if (!noiseModel)
-    return details::warn("apply_noise called but no noise model provided. "
-                         "skipping kraus channel application.");
-
-  std::vector<QuditInfo> qubits;
-  auto argTuple = std::forward_as_tuple(args...);
-  cudaq::tuple_for_each(argTuple, [&qubits](auto &&element) {
-    if constexpr (details::IsQubitType<decltype(element)>::value) {
-      qubits.push_back(qubitToQuditInfo(element));
-    } else {
-      for (auto &qq : element) {
-        qubits.push_back(qubitToQuditInfo(qq));
-      }
-    }
-  });
-
-  auto channel = noiseModel->template get_channel<T>(params);
-  // per spec - caller provides noise model, but channel not registered,
-  // warning generated, no channel application.
-  if (channel.empty())
-    return;
-  getExecutionManager()->applyNoise(channel, qubits);
-}
+void apply_noise(const std::vector<double> &params, Q &&...args);
 
 class kraus_channel;
 
@@ -670,14 +571,7 @@ constexpr bool any_vector_of_float = std::disjunction_v<std::is_same<
 template <typename T, typename... Args>
   requires(std::derived_from<T, cudaq::kraus_channel> &&
            !any_vector_of_float<Args...> && TARGET_OK_FOR_APPLY_NOISE)
-void apply_noise(Args &&...args) {
-  constexpr auto ctor_arity = count_leading_floats<0, Args...>();
-  constexpr auto qubit_arity = sizeof...(args) - ctor_arity;
-
-  details::applyNoiseImpl<T>(
-      details::tuple_slice<ctor_arity>(std::forward_as_tuple(args...)),
-      details::tuple_slice_last<qubit_arity>(std::forward_as_tuple(args...)));
-}
+void apply_noise(Args &&...args);
 
 } // namespace cudaq
 
@@ -721,4 +615,6 @@ void apply_noise(Args &&...args) {
 #ifdef CUDAQ_LIBRARY_MODE
 #include "cudaq/polyfill/qis/gates_impl.h"
 #include "cudaq/polyfill/qis/measurement_impl.h"
+#include "cudaq/polyfill/qis/control_impl.h"
+#include "cudaq/polyfill/qis/noise_impl.h"
 #endif
