@@ -6,6 +6,12 @@
  * the terms of the Apache License 2.0 which accompanies this distribution.    *
  ******************************************************************************/
 
+// Provide implementations for QPU runtime features that can be emulated in
+// library mode. Automatically included from the cudaq/qis headers when in
+// library mode.
+//
+// Do not include this header directly.
+
 #pragma once
 
 #ifdef CUDAQ_LIBRARY_MODE
