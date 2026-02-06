@@ -201,74 +201,30 @@ void exp_pauli(QuantumRegister &ctrls, double theta, const char *pauliWord,
                QubitArgs &...qubits);
 
 /// @brief Measure an individual qubit, return 0,1 as `bool`
-inline measure_result mz(qubit &q) {
-  return getExecutionManager()->measure(QuditInfo{q.n_levels(), q.id()});
-}
+measure_result mz(qubit &q);
 
 /// @brief Measure an individual qubit in `x` basis, return 0,1 as `bool`
-inline measure_result mx(qubit &q) {
-  h(q);
-  return getExecutionManager()->measure(QuditInfo{q.n_levels(), q.id()});
-}
+measure_result mx(qubit &q);
 
 // Measure an individual qubit in `y` basis, return 0,1 as `bool`
-inline measure_result my(qubit &q) {
-  r1(-M_PI_2, q);
-  h(q);
-  return getExecutionManager()->measure(QuditInfo{q.n_levels(), q.id()});
-}
+measure_result my(qubit &q);
 
-inline void reset(qubit &q) {
-  getExecutionManager()->reset({q.n_levels(), q.id()});
-}
+void reset(qubit &q);
 
 // Measure all qubits in the range, return vector of 0,1
 template <typename QubitRange>
   requires std::ranges::range<QubitRange>
-std::vector<measure_result> mz(QubitRange &q) {
-  std::vector<measure_result> b;
-  for (auto &qq : q) {
-    b.push_back(mz(qq));
-  }
-  return b;
-}
+std::vector<measure_result> mz(QubitRange &q);
 
 template <std::size_t Levels>
-std::vector<measure_result> mz(const qview<Levels> &q) {
-  std::vector<measure_result> b;
-  for (auto &qq : q) {
-    b.emplace_back(mz(qq));
-  }
-  return b;
-}
+std::vector<measure_result> mz(const qview<Levels> &q);
 
 template <typename... Qs>
 std::vector<measure_result> mz(qubit &q, Qs &&...qs);
 
 template <typename QubitRange, typename... Qs>
   requires(std::ranges::range<QubitRange>)
-std::vector<measure_result> mz(QubitRange &qr, Qs &&...qs) {
-  std::vector<measure_result> result = mz(qr);
-  auto rest = mz(std::forward<Qs>(qs)...);
-  if constexpr (std::is_same_v<decltype(rest), measure_result>) {
-    result.push_back(rest);
-  } else {
-    result.insert(result.end(), rest.begin(), rest.end());
-  }
-  return result;
-}
-
-template <typename... Qs>
-std::vector<measure_result> mz(qubit &q, Qs &&...qs) {
-  std::vector<measure_result> result = {mz(q)};
-  auto rest = mz(std::forward<Qs>(qs)...);
-  if constexpr (std::is_same_v<decltype(rest), measure_result>) {
-    result.push_back(rest);
-  } else {
-    result.insert(result.end(), rest.begin(), rest.end());
-  }
-  return result;
-}
+std::vector<measure_result> mz(QubitRange &qr, Qs &&...qs);
 
 namespace support {
 // Helpers to deal with the `vector<bool>` specialized template type.
@@ -282,9 +238,7 @@ void __nvqpp_vector_bool_free_temporary_initlists(std::vector<char *> *);
 } // namespace support
 
 // Measure the state in the given spin_op basis.
-inline SpinMeasureResult measure(const cudaq::spin_op &term) {
-  return getExecutionManager()->measure(term);
-}
+SpinMeasureResult measure(const cudaq::spin_op &term);
 
 // Cast a measure register to an int64_t.
 // This function is classic control code that may run on a QPU.
@@ -766,4 +720,5 @@ void apply_noise(Args &&...args) {
 
 #ifdef CUDAQ_LIBRARY_MODE
 #include "cudaq/polyfill/qis/gates_impl.h"
+#include "cudaq/polyfill/qis/measurement_impl.h"
 #endif
