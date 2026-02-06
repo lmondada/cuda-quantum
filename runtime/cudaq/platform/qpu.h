@@ -9,11 +9,11 @@
 #pragma once
 
 #include "QuantumExecutionQueue.h"
+#include "common/ExecutionContext.h"
 #include "common/Registry.h"
 #include "common/ThunkInterface.h"
 #include "common/Timing.h"
 #include "cudaq/qis/execution_manager.h"
-#include "cudaq/qis/qubit_qis.h"
 #include "cudaq/remote_capabilities.h"
 #include "cudaq/runtime/logger/logger.h"
 #include "cudaq/utils/cudaq_utils.h"
@@ -79,7 +79,7 @@ protected:
       // expectation value instead of manually looping over terms, applying
       // basis change ops, and computing <ZZ..ZZZ>
       if (context.canHandleObserve) {
-        auto [exp, data] = cudaq::measure(H);
+        auto [exp, data] = getExecutionManager()->measure(H);
         context.expectationValue = exp;
         context.result = data;
       } else {
@@ -91,7 +91,7 @@ protected:
           else {
             // This takes a longer time for the first iteration unless
             // flushGateQueue() is called above.
-            auto [exp, data] = cudaq::measure(term);
+            auto [exp, data] = getExecutionManager()->measure(term);
             results.emplace_back(data.to_map(), term.get_term_id(), exp);
             sum += term.evaluate_coefficient().real() * exp;
           }
