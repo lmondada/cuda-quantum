@@ -2571,21 +2571,6 @@ class PyASTBridge(ast.NodeVisitor):
             # of eliminating unnecessary copies.
             return self.__migrateLists(result, copy_list_to_stack)
 
-        def processFunctionCall(kernel):
-            nrArgs = len(kernel.type.inputs)
-            values = self.__groupValues(node.args, [(nrArgs, nrArgs)])
-            values = convertArguments([t for t in kernel.type.inputs], values)
-            if len(kernel.type.results) == 0:
-                func.CallOp(kernel, values)
-                return
-
-            # The logic for calls that return values must match the logic in
-            # `visit_Return`; anything copied to the heap during return must be
-            # copied back to the stack. Compiler optimizations should take care
-            # of eliminating unnecessary copies.
-            result = func.CallOp(kernel, values).result
-            return self.__migrateLists(result, copy_list_to_stack)
-
         def resolveQualifiedName(pyVal):
             if isinstance(pyVal, ast.Name):
                 return None, pyVal.id
@@ -5343,7 +5328,6 @@ def compile_to_mlir(uniqueId, astModule, signature: KernelSignature, **kwargs):
 
     verbose = 'verbose' in kwargs and kwargs['verbose']
     lineNumberOffset = kwargs['location'] if 'location' in kwargs else ('', 0)
-    preCompile = kwargs['preCompile'] if 'preCompile' in kwargs else False
     kernelModuleName = kwargs[
         'kernelModuleName'] if 'kernelModuleName' in kwargs else None
 
@@ -5358,9 +5342,6 @@ def compile_to_mlir(uniqueId, astModule, signature: KernelSignature, **kwargs):
 
     ValidateArgumentAnnotations(bridge).visit(astModule)
     ValidateReturnStatements(bridge).visit(astModule)
-
-    if not preCompile:
-        raise RuntimeError("must be precompile mode")
 
     # Build the AOT Quake Module for this kernel.
     bridge.visit(astModule)

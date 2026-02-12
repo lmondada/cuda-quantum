@@ -1371,9 +1371,9 @@ class PyKernel(object):
         Returns a `CreateLambdaOp` closure.
         """
         # Add the target kernel to the current module.
-        otherModule = self.__reloadModuleIntoContext(target.qkeModule)
-        cudaq_runtime.updateModule(self.uniqName, self.module, otherModule)
         fulluniq = nvqppPrefix + target.uniqName
+        otherModule = self.__reloadModuleIntoContext(target.qkeModule)
+        cudaq_runtime.updateModule(fulluniq, self.module, otherModule)
         fn = recover_func_op(self.module, fulluniq)
 
         # build the closure to capture the lifted `args`
