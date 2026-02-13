@@ -16,7 +16,7 @@ from cudaq.mlir.dialects import cc
 
 from .analysis import FunctionDefVisitor
 from .utils import (getMLIRContext, mlirTypeFromAnnotation, nvqppPrefix,
-                    recover_func_op)
+                    recover_func_op, reloadMlirType)
 
 
 class KernelSignatureError(RuntimeError):
@@ -155,24 +155,51 @@ class KernelSignature:
             if isinstance(arg, CapturedVariable)
         ]
 
-    def get_callable_type(self) -> cc.CallableType:
+    def get_callable_type(
+            self, ctx: Optional[mlir.Context] = None) -> cc.CallableType:
         """
         The signature of the kernel as a `cc.CallableType`.
 
         This is the kernel signature without the lifted captured arguments.
+        Optionally pass the context to create the callable type in, otherwise
+        the python-global MLIR context is used.
         """
-        inputs = self.arg_types
-        outputs = [self.return_type] if self.return_type is not None else []
-        return cc.CallableType.get(getMLIRContext(), inputs, outputs)
+        try:
+            inputs = [
+                reloadMlirType(ty, ctx or getMLIRContext())
+                for ty in self.arg_types
+            ]
+            outputs = [
+                reloadMlirType(self.return_type, ctx or getMLIRContext())
+            ] if self.return_type is not None else []
+        except RuntimeError:
+            # fall back to no type reloading, might work if we are lucky
+            inputs = self.arg_types
+            outputs = [self.return_type] if self.return_type is not None else []
+        return cc.CallableType.get(ctx or getMLIRContext(), inputs, outputs)
 
-    def get_lifted_type(self) -> mlir.FunctionType:
+    def get_lifted_type(
+            self, ctx: Optional[mlir.Context] = None) -> mlir.FunctionType:
         """
         The signature of the kernel, including the list of captured arguments as
         inputs.
+
+        Optionally pass the context to create the function type in, otherwise
+        the python-global MLIR context is used.
         """
-        inputs = self.arg_types + self.captured_types()
-        outputs = [self.return_type] if self.return_type is not None else []
-        return mlir.FunctionType.get(inputs, outputs, getMLIRContext())
+        try:
+            inputs = [
+                reloadMlirType(ty, ctx or getMLIRContext())
+                for ty in (self.arg_types + self.captured_types())
+            ]
+            outputs = [
+                reloadMlirType(self.return_type, ctx or getMLIRContext())
+            ] if self.return_type is not None else []
+        except RuntimeError:
+            # fall back to no type reloading, might work if we are lucky
+            inputs = self.arg_types + self.captured_types()
+            outputs = [self.return_type] if self.return_type is not None else []
+        return mlir.FunctionType.get(inputs, outputs, ctx or getMLIRContext())
 
     def get_all_types(self) -> list[mlir.Type]:
         """

@@ -560,6 +560,11 @@ def pyInstanceFromName(name: str):
         return np.complex64(0.0)
 
 
+def reloadMlirType(mlirType, ctx=None):
+    py_type = mlirTypeToPyType(mlirType)
+    return mlirTypeFromPyType(py_type, ctx or getMLIRContext())
+
+
 def mlirTypeFromPyType(argType, ctx, **kwargs):
     if argType in [int, np.int64]:
         return IntegerType.get_signless(64, ctx)

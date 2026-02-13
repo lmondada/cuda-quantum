@@ -35,7 +35,8 @@ from .utils import (emitFatalError, emitWarning, nvqppPrefix, getMLIRContext,
                     createMLIRContext, recover_func_op, mlirTypeToPyType,
                     cudaq__unique_attr_name, mlirTypeFromPyType,
                     emitErrorIfInvalidPauli, recover_value_of,
-                    globalRegisteredOperations, recover_calling_module)
+                    globalRegisteredOperations, recover_calling_module,
+                    reloadMlirType)
 
 kDynamicPtrIndex: int = -2147483648
 
@@ -1382,13 +1383,15 @@ class PyKernel(object):
             m = target.defModule
         else:
             m = None
-        funcTy = target.signature.get_lifted_type()
-        callableTy = target.signature.get_callable_type()
+        funcTy = target.signature.get_lifted_type(ctx=self.ctx)
+        callableTy = target.signature.get_callable_type(ctx=self.ctx)
         with insPt, self.loc:
             lamb = cc.CreateLambdaOp(callableTy, loc=self.loc)
             lamb.attributes.__setitem__('function_type', TypeAttr.get(funcTy))
             initRegion = lamb.initRegion
-            initBlock = Block.create_at_start(initRegion, target.arg_types())
+            initBlock = Block.create_at_start(
+                initRegion,
+                [reloadMlirType(ty, self.ctx) for ty in target.arg_types()])
             inner = InsertionPoint(initBlock)
             with inner:
                 vs = []
@@ -1400,7 +1403,8 @@ class PyKernel(object):
                         # The recursive step
                         v = self.resolve_callable_arg(inner, v)
                     else:
-                        v = self.__getMLIRValueFromPythonArg(v, var.type)
+                        v = self.__getMLIRValueFromPythonArg(
+                            v, reloadMlirType(var.type, self.ctx))
                     vs.append(v)
                 if funcTy.results:
                     call = func.CallOp(fn, vs).result
