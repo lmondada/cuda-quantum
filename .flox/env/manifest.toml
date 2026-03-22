@@ -1,0 +1,155 @@
+schema-version = "1.10.0"
+
+
+## Install Packages --------------------------------------------------
+##  $ flox install gum  <- puts a package in [install] section below
+##  $ flox search gum   <- search for a package
+##  $ flox show gum     <- show all versions of a package
+## -------------------------------------------------------------------
+[install]
+# Build tools
+cmake.pkg-path = "cmake"
+ninja.pkg-path = "ninja"
+gcc.pkg-path = "gcc"
+git.pkg-path = "git"
+pkg-config.pkg-path = "pkg-config"
+python3.pkg-path = "python3"
+doxygen.pkg-path = "doxygen"
+
+# Libraries (with dev outputs for headers/cmake configs)
+zlib.pkg-path = "zlib"
+zlib.outputs = ["out", "dev", "static"]
+openssl.pkg-path = "openssl"
+openssl.outputs = ["out", "dev", "bin"]
+curl.pkg-path = "curl"
+curl.outputs = ["out", "dev", "bin"]
+openblas.pkg-path = "openblas"
+openblas.outputs = ["out", "dev"]
+flox-mcp-server.pkg-path = "flox/flox-mcp-server"
+flox-mcp-server.pkg-group = "flox-mcp-server"
+flox-mcp-server.systems = ["aarch64-darwin", "aarch64-linux", "x86_64-linux"]
+
+# Catalog packages for NVIDIA GPU libraries (Linux only)
+# Note: Docker build uses cuQuantum 26.01.0.4 but catalog only has 25.09.0.7.
+# Update version when catalog catches up.
+cuquantum.pkg-path = "flox-cuda/cudaPackages.cuquantum"
+cuquantum.version = "25.09.0.7"
+cuquantum.systems = ["x86_64-linux", "aarch64-linux"]
+cuquantum.priority = 1
+cuquantum.outputs = ["out", "dev", "lib", "static", "include"]
+cutensor.pkg-path = "flox-cuda/cudaPackages.libcutensor"
+cutensor.version = "2.3.1.0"
+cutensor.systems = ["x86_64-linux", "aarch64-linux"]
+cutensor.priority = 2
+cutensor.outputs = ["out", "dev", "lib", "static", "include"]
+
+# AWS SDK C++ (includes braket, s3-crt, sts and all other APIs)
+aws-sdk-cpp.pkg-path = "aws-sdk-cpp"
+
+# Custom flake packages (only where catalog packages are insufficient)
+# Uncomment as each flake is verified to build successfully.
+llvm-cudaq.flake = "path:.flox/flakes/llvm-cudaq"
+qrmi.flake = "path:.flox/flakes/qrmi"
+qrmi.systems = ["x86_64-linux"]
+
+
+## Environment Variables ---------------------------------------------
+##  ... available for use in the activated environment
+##      as well as [hook], [profile] scripts and [services] below.
+## -------------------------------------------------------------------
+[vars]
+# All *_INSTALL_PREFIX vars are set dynamically in [hook]
+# since they reference $FLOX_ENV which is only available at activation time.
+
+
+## Activation Hook ---------------------------------------------------
+##  ... run by _bash_ shell when you run 'flox activate'.
+## -------------------------------------------------------------------
+[hook]
+on-activate = '''
+  # Set *_INSTALL_PREFIX vars to nix store paths so CMakeLists.txt
+  # can find dependencies via its custom env-var-based lookup logic.
+  # $FLOX_ENV is a symlink tree that merges all installed packages.
+  export ZLIB_INSTALL_PREFIX="$FLOX_ENV"
+  export OPENSSL_INSTALL_PREFIX="$FLOX_ENV"
+  export CURL_INSTALL_PREFIX="$FLOX_ENV"
+  # PYBIND11: using submodule for now (has custom patches)
+
+  # BLAS: CMakeLists.txt looks for libblas.a but openblas provides libblas.so
+  # Point BLAS_LIBRARIES directly at the shared library.
+  export BLAS_LIBRARIES="$FLOX_ENV/lib/libblas.so"
+
+  # Once packages are uncommented in [install], they merge into $FLOX_ENV.
+  export LLVM_INSTALL_PREFIX="$FLOX_ENV"
+  export CUQUANTUM_INSTALL_PREFIX="$FLOX_ENV"
+  export CUTENSOR_INSTALL_PREFIX="$FLOX_ENV"
+  export AWS_INSTALL_PREFIX="$FLOX_ENV"
+  export QRMI_INSTALL_PREFIX="$FLOX_ENV"
+
+  # Ensure cmake can find packages in the flox environment
+  export CMAKE_PREFIX_PATH="$FLOX_ENV:${CMAKE_PREFIX_PATH:-}"
+'''
+
+
+## Profile script ----------------------------------------------------
+## ... sourced by _your shell_ when you run 'flox activate'.
+## -------------------------------------------------------------------
+[profile]
+# common = '''
+#   gum style \
+#   --foreground 212 --border-foreground 212 --border double \
+#   --align center --width 50 --margin "1 2" --padding "2 4" \
+#     $INTRO_MESSAGE
+# '''
+## Shell-specific customizations such as setting aliases go here:
+# bash = ...
+# zsh  = ...
+# fish = ...
+
+
+## Services ---------------------------------------------------------
+##  $ flox services start             <- Starts all services
+##  $ flox services status            <- Status of running services
+##  $ flox activate --start-services  <- Activates & starts all
+## ------------------------------------------------------------------
+[services]
+# myservice.command = "python3 -m http.server"
+
+
+## Include ----------------------------------------------------------
+## ... environments to create a composed environment
+## ------------------------------------------------------------------
+[include]
+# environments = [
+#     { dir = "../common" }
+# ]
+
+
+## Build and publish your own packages ------------------------------
+##  $ flox build
+##  $ flox publish
+## ------------------------------------------------------------------
+[build]
+# [build.myproject]
+# description = "The coolest project ever"
+# version = "0.0.1"
+# command = """
+#   mkdir -p $out/bin
+#   cargo build --release
+#   cp target/release/myproject $out/bin/myproject
+# """
+
+
+## Other Environment Options -----------------------------------------
+[options]
+# Allow unfree packages (needed for NVIDIA cuQuantum, cuTensor)
+allow.unfree = true
+# Systems that environment is compatible with
+# systems = [
+#   "aarch64-darwin",
+#   "aarch64-linux",
+#   "x86_64-darwin",
+#   "x86_64-linux",
+# ]
+# Uncomment to disable CUDA detection.
+# cuda-detection = false

@@ -1,0 +1,45 @@
+diff --git a/mlir/cmake/modules/AddMLIRPython.cmake b/mlir/cmake/modules/AddMLIRPython.cmake
+index 382f7c0624..5349bb8302 100644
+--- a/mlir/cmake/modules/AddMLIRPython.cmake
++++ b/mlir/cmake/modules/AddMLIRPython.cmake
+@@ -174,12 +174,13 @@ function(_mlir_python_install_sources name source_root_dir destination)
+     install(
+       FILES "${source_root_dir}/${source_relative_path}"
+       DESTINATION "${destination}/${dest_relative_dir}"
+-      COMPONENT "${name}"
++      COMPONENT mlir-python-sources
+     )
+   endforeach()
+-  get_target_export_arg(${name} MLIR export_to_mlirtargets UMBRELLA mlir-libraries)
++  get_target_export_arg(${name} MLIR export_to_mlirtargets
++    UMBRELLA mlir-python-sources)
+   install(TARGETS ${name}
+-    COMPONENT ${name}
++    COMPONENT mlir-python-sources
+     ${export_to_mlirtargets}
+   )
+ endfunction()
+diff --git a/mlir/python/CMakeLists.txt b/mlir/python/CMakeLists.txt
+index 29152b5c5c..22a55dbb66 100644
+--- a/mlir/python/CMakeLists.txt
++++ b/mlir/python/CMakeLists.txt
+@@ -517,6 +517,19 @@ add_mlir_python_common_capi_library(MLIRPythonCAPI
+     ${_ADDL_TEST_SOURCES}
+ )
+ 
++################################################################################
++# Custom targets.
++################################################################################
++
++_flatten_mlir_python_targets(mlir_python_sources_deps MLIRPythonSources)
++add_custom_target("mlir-python-sources" DEPENDS ${mlir_python_sources_deps})
++if(NOT LLVM_ENABLE_IDE)
++  add_llvm_install_targets(install-mlir-python-sources
++    DEPENDS mlir-python-sources
++    COMPONENT mlir-python-sources
++  )
++endif()
++
+ ################################################################################
+ # The fully assembled package of modules.
+ # This must come last.
