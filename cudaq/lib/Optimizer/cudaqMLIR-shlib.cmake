@@ -20,8 +20,17 @@
 # Read a newline-separated list file (one entry per line) into `_out_var`,
 # stripping comments and whitespace.
 function(cudaq_read_symbol_list _file _out_var)
-  # Re-run CMake configuration if the file changes.
-  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_file}")
+  # Re-run CMake configuration if the file changes. Register each file only
+  # once: CMAKE_CONFIGURE_DEPENDS is a directory property that Ninja turns into
+  # outputs of the re-run edge, so recording the same file twice fails the
+  # generate step with "multiple rules generate <file>". Compare resolved paths:
+  # callers reach the same list through different spellings.
+  get_filename_component(_file "${_file}" REALPATH)
+  get_property(_cudaq_symbol_lists GLOBAL PROPERTY CUDAQ_SYMBOL_LIST_DEPENDS)
+  if(NOT "${_file}" IN_LIST _cudaq_symbol_lists)
+    set_property(GLOBAL APPEND PROPERTY CUDAQ_SYMBOL_LIST_DEPENDS "${_file}")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_file}")
+  endif()
   file(STRINGS "${_file}" _lines)
   set(_entries)
   foreach(_line IN LISTS _lines)
@@ -77,8 +86,17 @@ foreach(_lib IN LISTS _cudaq_mlir_whole_archive)
   endif()
 endforeach()
 
-# 4. Bundle the LLVM native target for JITing, plus LLVMCore.
-llvm_map_components_to_libnames(_cudaq_llvm_native_libs native nativecodegen core)
+# 4. Bundle the LLVM native target for JITing, plus LLVMCore and LLVMSupport.
+#
+# `support` has to be whole-archived rather than picked up as a transitive
+# dependency of the libraries above: CUDA-Q sources that link only against
+# libcudaqMLIR.so still call llvm::Support APIs directly (for instance
+# llvm::SHA256 in python/runtime/cudaq/platform/ProgramFingerprint.cpp), and a
+# plain link only pulls in the archive members that MLIR itself happens to
+# reference. Anything else stays unresolved in the dependent shared object and
+# surfaces as an ImportError at dlopen time rather than as a link error.
+llvm_map_components_to_libnames(_cudaq_llvm_native_libs
+  native nativecodegen core support)
 foreach(_lib IN LISTS _cudaq_llvm_native_libs)
   if(TARGET ${_lib})
     target_link_libraries(${LIBRARY_NAME} PRIVATE "$<LINK_LIBRARY:WHOLE_ARCHIVE,${_lib}>")
