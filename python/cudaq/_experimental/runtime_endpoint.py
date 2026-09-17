@@ -106,6 +106,9 @@ class RuntimeEndpoint(Protocol):
     is_remote: bool = False
     is_emulated: bool = False
     supports_jit: bool = True
+    library_mode: bool = False
+    gpu_required: bool = False
+    target_name: str = ""
 
 
 @runtime_checkable

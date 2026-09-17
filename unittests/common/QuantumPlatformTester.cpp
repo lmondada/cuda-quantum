@@ -8,6 +8,9 @@
 
 #include "common/CompileTarget.h"
 #include "common/CompiledModule.h"
+#include "common/PluginUtils.h"
+#include "nvqpp_config.h"
+#include "cudaq/Target/TargetConfig.h"
 #include "cudaq/algorithms/dem/policy.h"
 #include "cudaq/algorithms/draw.h"
 #include "cudaq/algorithms/msm/policy.h"
@@ -15,14 +18,20 @@
 #include "cudaq/algorithms/policies.h"
 #include "cudaq/algorithms/run/policy.h"
 #include "cudaq/algorithms/sample/policy.h"
+#include "cudaq/platform.h"
 #include "cudaq/platform/RuntimeEndpoint.h"
+#include "cudaq/platform/platform_test_access.h"
 #include "cudaq/platform/qpu.h"
+#include "cudaq/platform/qpu_utils.h"
 #include "cudaq/platform/quantum_platform.h"
 #include "cudaq/ptsbe/policy.h"
+#include "cudaq/utils/cudaq_utils.h"
 #include <cxxabi.h>
+#include <filesystem>
 #include <gtest/gtest.h>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -35,7 +44,7 @@ public:
   /// Number of times `launchKernel(sample_policy)` was called on this QPU.
   std::size_t sampleLaunchCount = 0;
 
-  CompileTarget getCompileTarget(const RuntimeTarget *) override {
+  CompileTarget getCompileTarget() override {
     CompileTarget ct;
     ct.pipelineConfig.highLevelPipeline = "custom_pipeline";
     ct.fullySpecialize = false;
@@ -507,4 +516,128 @@ TEST(QuantumPlatformCustomEndpointTester, errorMessageIdentifiesOperation) {
   platform.setEndpoint(makePlatformCompileTarget(), RuntimeEndpoint{.impl = 0});
 
   expectUnsupported([&] { platform.set_noise(nullptr); }, "set_noise");
+}
+
+TEST(QuantumPlatformPerQpuTester, compileTargetAndEndpointMetadataAreIndexed) {
+  TestPlatform platform(0);
+
+  CompileTarget ct0;
+  ct0.pipelineConfig.codegenTranslation =
+      "qir-adaptive:1.0:int_computations,output_log";
+  RuntimeEndpoint ep0{.impl = 0};
+  ep0.libraryMode = true;
+  ep0.gpuRequired = true;
+  ep0.targetName = "gpu-sim";
+
+  CompileTarget ct1;
+  ct1.pipelineConfig.codegenTranslation = "qir-base";
+  RuntimeEndpoint ep1{.impl = 1};
+  ep1.libraryMode = false;
+  ep1.gpuRequired = false;
+  ep1.targetName = "cpu-hw";
+  ep1.isRemote = true;
+
+  platform.addCustomQpu(ct0, ep0);
+  platform.addCustomQpu(ct1, ep1);
+
+  EXPECT_EQ(platform.getCompileTarget(0).pipelineConfig.codegenTranslation,
+            "qir-adaptive:1.0:int_computations,output_log");
+  EXPECT_EQ(platform.getCompileTarget(1).pipelineConfig.codegenTranslation,
+            "qir-base");
+  EXPECT_TRUE(platform.is_library_mode(0));
+  EXPECT_FALSE(platform.is_library_mode(1));
+  EXPECT_TRUE(platform.getRuntimeEndpoint(0).gpuRequired);
+  EXPECT_FALSE(platform.getRuntimeEndpoint(1).gpuRequired);
+  EXPECT_EQ(platform.getRuntimeEndpoint(0).targetName, "gpu-sim");
+  EXPECT_EQ(platform.getRuntimeEndpoint(1).targetName, "cpu-hw");
+  EXPECT_TRUE(platform.get_codegen_config(0).outputLog);
+  EXPECT_FALSE(platform.get_codegen_config(1).outputLog);
+}
+
+TEST(QuantumPlatformPerQpuTester, genericFullQirKeepsRunOutputLogOnLocalSim) {
+  TestPlatform platform(0);
+  CompileTarget ct;
+  ct.pipelineConfig.codegenTranslation = "qir:";
+  RuntimeEndpoint ep{.impl = 0};
+  ep.isRemote = false;
+  platform.addCustomQpu(ct, ep);
+
+  EXPECT_TRUE(platform.get_codegen_config().outputLog);
+}
+
+TEST(QuantumPlatformTargetSetupTester,
+     setTargetBackendDoesNotNeedPlatformRuntimeTarget) {
+  auto &platform = cudaq::get_platform();
+  auto savedTarget = platform.getCompileTarget();
+  auto savedEndpoint = platform.getRuntimeEndpoint();
+  cudaq::detail::PlatformTestAccess::setTargetBackend(
+      platform, "nonexistent-backend-for-runtime-target-removal");
+  ASSERT_GE(platform.num_qpus(), 1u);
+  EXPECT_FALSE(platform.getCompileTarget().fullySpecialize);
+  EXPECT_FALSE(platform.is_library_mode());
+  EXPECT_TRUE(platform.get_codegen_config().outputLog);
+  EXPECT_EQ(platform.getRuntimeEndpoint().targetName,
+            "nonexistent-backend-for-runtime-target-removal");
+  cudaq::detail::PlatformTestAccess::setTarget(platform, savedTarget,
+                                               savedEndpoint);
+}
+
+TEST(QuantumPlatformTargetSetupTester,
+     mqpuSetTargetBackendDoesNotNeedRuntimeTarget) {
+  const auto libPath =
+      std::filesystem::path(cudaq::getCUDAQLibraryPath()).parent_path() /
+      ("libcudaq-platform-mqpu" PLATFORM_SHARED_LIBRARY_SUFFIX);
+  if (!std::filesystem::exists(libPath))
+    GTEST_SKIP() << "libcudaq-platform-mqpu not found at " << libPath;
+
+  cudaq::quantum_platform *mqpu = nullptr;
+  try {
+    mqpu = cudaq::getUniquePluginInstance<cudaq::quantum_platform>(
+        "getQuantumPlatform_mqpu", libPath.c_str());
+  } catch (const std::exception &e) {
+    GTEST_SKIP() << e.what();
+  }
+  ASSERT_NE(mqpu, nullptr);
+
+  try {
+    cudaq::detail::PlatformTestAccess::setTargetBackend(*mqpu, "nvidia-mqpu");
+  } catch (const std::exception &e) {
+    EXPECT_NE(std::string(e.what()).find("No platform QPU"), std::string::npos)
+        << e.what();
+    return;
+  }
+
+  ASSERT_GE(mqpu->num_qpus(), 1u);
+  for (std::size_t i = 0; i < mqpu->num_qpus(); ++i) {
+    EXPECT_FALSE(mqpu->getCompileTarget(i).fullySpecialize);
+    EXPECT_EQ(mqpu->getRuntimeEndpoint(i).targetName, "nvidia-mqpu");
+    EXPECT_FALSE(mqpu->is_library_mode(i));
+  }
+}
+
+TEST(QuantumPlatformTargetSetupTester,
+     materializesPerQpuMetadataWithoutRuntimeTarget) {
+  cudaq::config::TargetConfig config;
+  config.GpuRequired = true;
+  cudaq::config::BackendEndConfigEntry backend;
+  backend.LibraryModeExecutionManager = "default";
+  config.BackendConfig = backend;
+
+  auto compileTarget = cudaq::createDefaultCompileTarget(config, {});
+  compileTarget.fullySpecialize = false;
+
+  TestPlatform platform(0);
+  for (int i = 0; i < 2; ++i) {
+    RuntimeEndpoint endpoint{.impl = i};
+    cudaq::detail::applyTargetMetadata(endpoint, config, "sim-gpu");
+    platform.addCustomQpu(compileTarget, endpoint);
+  }
+
+  ASSERT_EQ(platform.num_qpus(), 2u);
+  for (std::size_t i = 0; i < 2; ++i) {
+    EXPECT_FALSE(platform.getCompileTarget(i).fullySpecialize);
+    EXPECT_TRUE(platform.is_library_mode(i));
+    EXPECT_TRUE(platform.getRuntimeEndpoint(i).gpuRequired);
+    EXPECT_EQ(platform.getRuntimeEndpoint(i).targetName, "sim-gpu");
+  }
 }

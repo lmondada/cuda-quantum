@@ -15,6 +15,7 @@
 #include "cudaq/Target/TargetConfig.h"
 #include "cudaq/Target/TargetConfigYaml.h"
 #include "cudaq/platform/QuantumExecutionQueue.h"
+#include "cudaq/platform/RuntimeEndpoint.h"
 #include "cudaq/runtime/logger/logger.h"
 #include "cudaq/utils/cudaq_utils.h"
 #include "llvm/Support/Base64.h"
@@ -56,6 +57,43 @@ detail::getBackendConfigOption(const std::string &backend,
     return value;
   }
   return std::nullopt;
+}
+
+std::pair<std::string, std::map<std::string, std::string>>
+detail::parseBackendConfigString(const std::string &backend) {
+  auto split = cudaq::split(backend, ';');
+  std::string name = split.empty() ? backend : split.front();
+  std::map<std::string, std::string> configMap;
+  for (std::size_t i = 1; i + 1 < split.size(); i += 2)
+    configMap.emplace(split[i], split[i + 1]);
+  return {std::move(name), std::move(configMap)};
+}
+
+config::TargetConfig
+detail::loadBackendTargetConfig(const std::string &backend) {
+  auto [name, _] = parseBackendConfigString(backend);
+  std::filesystem::path cudaqLibPath{cudaq::getCUDAQLibraryPath()};
+  auto platformPath = cudaqLibPath.parent_path().parent_path() / "targets";
+  auto configFilePath =
+      getTargetConfigPath(backend, platformPath / (name + ".yml"));
+  if (!std::filesystem::exists(configFilePath)) {
+    CUDAQ_INFO("No config file found for backend {}. Using default.", name);
+    return {};
+  }
+  CUDAQ_INFO("Config file path = {}", configFilePath.string());
+  auto config = config::loadTargetConfig(configFilePath);
+  loadTargetPluginLibraries(name, configFilePath, config);
+  return config;
+}
+
+void detail::applyTargetMetadata(RuntimeEndpoint &endpoint,
+                                 const config::TargetConfig &config,
+                                 std::string targetName) {
+  endpoint.targetName = std::move(targetName);
+  endpoint.gpuRequired = config.GpuRequired;
+  endpoint.libraryMode =
+      config.BackendConfig.has_value() &&
+      !config.BackendConfig->LibraryModeExecutionManager.empty();
 }
 
 std::filesystem::path

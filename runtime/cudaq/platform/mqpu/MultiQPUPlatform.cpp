@@ -9,14 +9,14 @@
 #include "DefaultQPU.h"
 #include "common/ExecutionContext.h"
 #include "common/FmtCore.h"
-#include "common/RuntimeTarget.h"
 #include "helpers/MQPUUtils.h"
-#include "cudaq/Target/TargetConfigYaml.h"
+#include "cudaq/platform.h"
 #include "cudaq/platform/qpu_utils.h"
 #include "cudaq/platform/quantum_platform.h"
 #include "cudaq/runtime/logger/logger.h"
 #include "cudaq/simulators.h"
 #include <filesystem>
+#include <map>
 
 // Note: LLVM_INSTANTIATE_REGISTRY(cudaq::QPU::RegistryType) is intentionally
 // NOT placed here. The canonical QPU registry instance lives in
@@ -53,44 +53,11 @@ public:
   }
 
 private:
-  void populateDefaultQPUs();
+  void populateDefaultQPUs(
+      const cudaq::config::TargetConfig &config = {},
+      const std::map<std::string, std::string> &runtimeConfig = {},
+      const std::string &targetName = {});
 
-  static std::string getTargetName(const std::string &description) {
-    // Target name is the first one in the target config string
-    // or the whole string if this is the only config.
-    return description.find(";") != std::string::npos
-               ? cudaq::split(description, ';').front()
-               : description;
-  }
-
-  static std::string getQpuType(const std::string &description) {
-    // Target name is the first one in the target config string
-    // or the whole string if this is the only config.
-    const auto targetName = getTargetName(description);
-    std::filesystem::path cudaqLibPath{cudaq::getCUDAQLibraryPath()};
-    auto platformPath = cudaqLibPath.parent_path().parent_path() / "targets";
-    std::string targetConfigFileName = targetName + std::string(".yml");
-    const auto explicitConfigPath =
-        cudaq::detail::getBackendConfigOption(description, "__yml_path");
-    auto configFilePath = explicitConfigPath
-                              ? std::filesystem::path(*explicitConfigPath)
-                              : platformPath / targetConfigFileName;
-    CUDAQ_INFO("Config file path for target {} = {}", targetName,
-               configFilePath.string());
-    // Don't try to load something that doesn't exist.
-    if (!explicitConfigPath && !std::filesystem::exists(configFilePath))
-      return "";
-    auto config = cudaq::config::loadTargetConfig(configFilePath);
-    cudaq::detail::loadTargetPluginLibraries(targetName, configFilePath,
-                                             config);
-
-    if (config.BackendConfig.has_value() &&
-        !config.BackendConfig->PlatformQpu.empty()) {
-      return config.BackendConfig->PlatformQpu;
-    }
-
-    return "";
-  }
   static std::string getOption(const std::string &str,
                                const std::string &prefix) {
     // Return the first key-value configuration option found in the format:
@@ -111,7 +78,12 @@ private:
   }
 
   void setTargetBackend(const std::string &description) override {
-    const auto qpuSubType = getQpuType(description);
+    auto [targetName, runtimeConfig] =
+        cudaq::detail::parseBackendConfigString(description);
+    auto config = cudaq::detail::loadBackendTargetConfig(description);
+    const std::string qpuSubType =
+        config.BackendConfig.has_value() ? config.BackendConfig->PlatformQpu
+                                         : std::string{};
     if (!qpuSubType.empty()) {
       if (!cudaq::registry::isRegistered<cudaq::QPU>(qpuSubType))
         throw std::runtime_error(
@@ -122,13 +94,15 @@ private:
         auto urls = cudaq::split(getOption(description, "url"), ',');
         clearQPUs();
         for (std::size_t qId = 0; qId < urls.size(); ++qId) {
-          // Populate the information and add the QPUs
-          auto qpu = cudaq::registry::get<cudaq::QPU>("orca");
+          auto newQPU = cudaq::registry::get<cudaq::QPU>("orca");
+          newQPU->setId(qId);
           const std::string configStr =
               fmt::format("orca;url;{}", formatUrl(urls[qId]));
-          qpu->setId(qId);
-          qpu->setTargetBackend(configStr);
-          addQPU(std::move(qpu));
+          newQPU->setTargetBackend(configStr);
+          auto compileTarget = newQPU->getCompileTarget();
+          auto endpoint = cudaq::RuntimeEndpoint::fromQPU(std::move(newQPU));
+          cudaq::detail::applyTargetMetadata(endpoint, config, targetName);
+          addQPU(compileTarget, endpoint);
         }
         return;
       } else {
@@ -138,7 +112,7 @@ private:
                         qpuSubType));
       }
     } else {
-      populateDefaultQPUs();
+      populateDefaultQPUs(config, runtimeConfig, targetName);
 
       if (num_qpus() == 0) {
         // No QPU (GPU simulator nor specified platform QPU) was able to be
@@ -151,7 +125,10 @@ private:
   }
 };
 
-void MultiQPUQuantumPlatform::populateDefaultQPUs() {
+void MultiQPUQuantumPlatform::populateDefaultQPUs(
+    const cudaq::config::TargetConfig &config,
+    const std::map<std::string, std::string> &runtimeConfig,
+    const std::string &targetName) {
   clearQPUs();
   int nDevices = cudaq::getCudaDeviceCount();
   // Skipped if CUDA-Q was built with CUDA but no devices present at
@@ -174,11 +151,15 @@ void MultiQPUQuantumPlatform::populateDefaultQPUs() {
     if (nDevices == 0)
       throw std::runtime_error("No GPUs available to instantiate platform.");
 
+    auto compileTarget = cudaq::createDefaultCompileTarget(config, runtimeConfig);
+    compileTarget.fullySpecialize = false;
     // Add a QPU for each GPU.
     for (int i = 0; i < nDevices; i++) {
       auto qpu = std::make_unique<cudaq::DefaultQPU>();
       qpu->setId(i);
-      addQPU(std::move(qpu));
+      auto endpoint = cudaq::RuntimeEndpoint::fromQPU(std::move(qpu));
+      cudaq::detail::applyTargetMetadata(endpoint, config, targetName);
+      addQPU(compileTarget, endpoint);
     }
   }
 }

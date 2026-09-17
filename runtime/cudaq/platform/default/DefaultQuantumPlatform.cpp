@@ -8,15 +8,12 @@
 
 #include "DefaultQPU.h"
 #include "common/ExecutionContext.h"
-#include "common/RuntimeTarget.h"
 #include "common/Timing.h"
-#include "cudaq/Target/TargetConfigYaml.h"
+#include "cudaq/platform.h"
 #include "cudaq/platform/qpu_utils.h"
 #include "cudaq/platform/quantum_platform.h"
 #include "cudaq/qis/qubit_qis.h"
 #include "cudaq/runtime/logger/logger.h"
-#include "cudaq/utils/cudaq_utils.h"
-#include <filesystem>
 
 /// This file defines the default, library mode, quantum platform. Its goal is
 /// to create a single QPU that is added to the quantum_platform which delegates
@@ -43,66 +40,39 @@ private:
   void setTargetBackend(const std::string &backend) override {
 
     CUDAQ_INFO("Backend string is {}", backend);
-    std::map<std::string, std::string> configMap;
-    auto mutableBackend = backend;
-    if (mutableBackend.find(";") != std::string::npos) {
-      auto keyVals = cudaq::split(mutableBackend, ';');
-      mutableBackend = keyVals[0];
-      for (std::size_t i = 1; i < keyVals.size(); i += 2)
-        configMap.insert({keyVals[i], keyVals[i + 1]});
-    }
-
-    // If runtimeTarget was pre-populated (e.g., by the Python
-    // LinkedLibraryHolder), use its already-parsed config to avoid re-reading
-    // the YAML file from disk.
-    cudaq::config::TargetConfig config;
-    if (runtimeTarget) {
-      config = runtimeTarget->config;
-      runtimeTarget->runtimeConfig = configMap;
-    } else {
-      std::filesystem::path cudaqLibPath{cudaq::getCUDAQLibraryPath()};
-      auto platformPath = cudaqLibPath.parent_path().parent_path() / "targets";
-      std::string fileName = mutableBackend + std::string(".yml");
-      const auto explicitConfigPath =
-          cudaq::detail::getBackendConfigOption(backend, "__yml_path");
-      auto configFilePath = explicitConfigPath
-                                ? std::filesystem::path(*explicitConfigPath)
-                                : platformPath / fileName;
-
-      if (std::filesystem::exists(configFilePath)) {
-        CUDAQ_INFO("Config file path = {}", configFilePath.string());
-        config = cudaq::config::loadTargetConfig(configFilePath);
-        cudaq::detail::loadTargetPluginLibraries(mutableBackend, configFilePath,
-                                                 config);
-        runtimeTarget = std::make_unique<cudaq::RuntimeTarget>();
-        runtimeTarget->config = config;
-        runtimeTarget->name = mutableBackend;
-        runtimeTarget->description = config.Description;
-        runtimeTarget->runtimeConfig = configMap;
-      } else {
-        CUDAQ_INFO("No config file found for backend {}. Using default.",
-                   backend);
-      }
-    }
+    auto [targetName, configMap] =
+        cudaq::detail::parseBackendConfigString(backend);
+    auto config = cudaq::detail::loadBackendTargetConfig(backend);
 
     std::unique_ptr<cudaq::QPU> newQPU;
-    if (config.BackendConfig.has_value() &&
-        !config.BackendConfig->PlatformQpu.empty()) {
+    const bool usesPlatformQpu = config.BackendConfig.has_value() &&
+                                 !config.BackendConfig->PlatformQpu.empty();
+    if (usesPlatformQpu) {
       auto qpuName = config.BackendConfig->PlatformQpu;
       CUDAQ_INFO("Default platform QPU subtype name: {}", qpuName);
       newQPU = cudaq::registry::get<cudaq::QPU>(qpuName);
       if (newQPU == nullptr)
         throw std::runtime_error(
             qpuName + " is not a valid QPU name for the default platform.");
-      clearQPUs();
     } else {
       newQPU = std::make_unique<cudaq::DefaultQPU>();
     }
 
-    // Forward to the QPU.
+    // Forward to the QPU so it can materialize its own compile target.
     newQPU->setTargetBackend(backend);
+
+    CompileTarget compileTarget;
+    if (usesPlatformQpu) {
+      compileTarget = newQPU->getCompileTarget();
+    } else {
+      compileTarget = createDefaultCompileTarget(config, configMap);
+      compileTarget.fullySpecialize = false;
+    }
+
+    auto endpoint = RuntimeEndpoint::fromQPU(std::move(newQPU));
+    cudaq::detail::applyTargetMetadata(endpoint, config, targetName);
     clearQPUs();
-    addQPU(std::move(newQPU));
+    addQPU(compileTarget, endpoint);
   }
 };
 } // namespace

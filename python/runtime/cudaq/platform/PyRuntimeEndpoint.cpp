@@ -285,6 +285,14 @@ static bool getAttrOrDefault(const nanobind::object &obj, const char *attr,
   return defaultValue;
 }
 
+static std::string getStringAttrOrDefault(const nanobind::object &obj,
+                                          const char *attr,
+                                          std::string defaultValue) {
+  if (nanobind::hasattr(obj, attr))
+    return nanobind::cast<std::string>(obj.attr(attr));
+  return defaultValue;
+}
+
 RuntimeEndpoint cudaq::makeRuntimeEndpoint(nanobind::object obj) {
   nanobind::gil_scoped_acquire gil;
   bool allNullptr = true;
@@ -318,6 +326,9 @@ RuntimeEndpoint cudaq::makeRuntimeEndpoint(nanobind::object obj) {
   endpoint.isRemote = getAttrOrDefault(obj, "is_remote", false);
   endpoint.isEmulated = getAttrOrDefault(obj, "is_emulated", false);
   endpoint.supportsJit = getAttrOrDefault(obj, "supports_jit", true);
+  endpoint.libraryMode = getAttrOrDefault(obj, "library_mode", false);
+  endpoint.gpuRequired = getAttrOrDefault(obj, "gpu_required", false);
+  endpoint.targetName = getStringAttrOrDefault(obj, "target_name", "");
   endpoint.impl = makeEndpointHandle(std::move(obj));
   return endpoint;
 }

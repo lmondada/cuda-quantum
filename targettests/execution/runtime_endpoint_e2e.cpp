@@ -54,7 +54,7 @@ int main() {
   ep.dispatch.set<sample_policy>(mockSample);
   ep.dispatch.set<observe_policy>(mockObserve);
   detail::PlatformTestAccess::setTarget(
-      platform, createDefaultCompileTarget(&platform), ep);
+      platform, createDefaultCompileTarget(), ep);
 
   (void)cudaq::sample(10, bell);
   // CHECK: [sample] kernel={{.*}}

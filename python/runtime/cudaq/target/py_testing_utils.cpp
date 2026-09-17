@@ -8,12 +8,15 @@
 
 #include "py_testing_utils.h"
 #include "LinkedLibraryHolder.h"
+#include "common/CompileTarget.h"
 #include "common/ExecutionContext.h"
 #include "cudaq.h"
 #include "nvqir/CircuitSimulator.h"
+#include "runtime/cudaq/platform/PyRuntimeEndpoint.h"
 #include "cudaq/algorithms/run/policy.h"
 #include "cudaq/algorithms/sample/policy.h"
 #include "cudaq/platform.h"
+#include "cudaq/platform/platform_test_access.h"
 #include "cudaq/qis/execution_manager.h"
 #include <nanobind/nanobind.h>
 #include <nanobind/stl/function.h>
@@ -107,6 +110,17 @@ void bindTestUtils(nanobind::module_ &mod, LinkedLibraryHolder &holder) {
         return result.outputLog;
       },
       nanobind::arg("numQubits"), nanobind::arg("kernel"));
+
+  testingSubmodule.def(
+      "add_qpu",
+      [](const CompileTarget &target, nanobind::object endpoint) {
+        auto &platform = cudaq::get_platform();
+        cudaq::detail::PlatformTestAccess::addQPU(
+            platform, target, makeRuntimeEndpoint(std::move(endpoint)));
+      },
+      nanobind::arg("compile_target"), nanobind::arg("runtime_endpoint"),
+      "Append a (compile target, runtime endpoint) pair as an additional QPU. "
+      "Intended for tests.");
 }
 
 } // namespace cudaq

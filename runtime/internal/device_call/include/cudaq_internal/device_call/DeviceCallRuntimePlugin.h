@@ -9,7 +9,7 @@
 #pragma once
 
 namespace cudaq {
-struct RuntimeTarget;
+struct RuntimeEndpoint;
 }
 
 namespace cudaq_internal::device_call {
@@ -23,8 +23,8 @@ public:
 
   // Configure the device_call runtime from cudaq::realtime::initialize.
   virtual void initialize(int argc, char **argv) = 0;
-  // Validate the initialized runtime against the selected CUDA-Q target.
-  virtual void validate(const cudaq::RuntimeTarget *) {}
+  // Validate the initialized runtime against the selected CUDA-Q QPU.
+  virtual void validate(const cudaq::RuntimeEndpoint *) {}
   // Tear down device_call runtime: e.g., any service data created by
   // initialize.
   virtual void finalize() = 0;

@@ -250,6 +250,9 @@ target_link_libraries(test_quantum_platform
   cudaq-platform-default
   nvqir
   gtest_main)
+if(TARGET cudaq-platform-mqpu)
+  add_dependencies(test_quantum_platform cudaq-platform-mqpu)
+endif()
 cudaq_gtest_discover_tests(test_quantum_platform DISCOVERY_TIMEOUT 120)
 
 add_subdirectory(qis)

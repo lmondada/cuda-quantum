@@ -15,7 +15,6 @@
 #include "common/KernelArgs.h"
 #include "common/NoiseModel.h"
 #include "common/ObserveResult.h"
-#include "common/RuntimeTarget.h"
 #include "common/SampleResult.h"
 #include "common/ThunkInterface.h"
 #include "nvqpp_interface.h"
@@ -27,7 +26,6 @@
 #include <functional>
 #include <future>
 #include <memory>
-#include <optional>
 #include <string>
 #include <vector>
 
@@ -36,7 +34,6 @@ namespace cudaq {
 class QPU;
 class gradient;
 class optimizer;
-struct RuntimeTarget;
 class LinkedLibraryHolder;
 
 namespace detail {
@@ -128,6 +125,7 @@ public:
 
   /// Get the RuntimeEndpoint for the QPU with ID @p qpuId.
   RuntimeEndpoint &getRuntimeEndpoint(std::size_t qpuId = 0);
+  const RuntimeEndpoint &getRuntimeEndpoint(std::size_t qpuId = 0) const;
 
   /// Return whether this platform is a simulator.
   bool is_simulator(std::size_t qpu_id = 0) const;
@@ -154,17 +152,12 @@ public:
   /// @brief Return the noise model for @p qpu_id on this platform.
   const noise_model *get_noise(std::size_t qpu_id = 0);
 
-  /// Get code generation configuration values
-  CodeGenConfig get_codegen_config();
+  /// Get code generation configuration for @p qpu_id.
+  CodeGenConfig get_codegen_config(std::size_t qpu_id = 0) const;
 
-  /// Get runtime target information
-  // This includes information about the target configuration (config file) and
-  // any other user-defined settings (nvq++ target option compile flags or
-  // `set_target` arguments).
-  const RuntimeTarget *get_runtime_target() const;
-
-  /// True if the active target runs without the MLIR/QIR kernel launch path.
-  bool is_library_mode() const;
+  /// True if the QPU with ID @p qpu_id runs without the MLIR/QIR kernel
+  /// launch path.
+  bool is_library_mode(std::size_t qpu_id = 0) const;
 
   /// @brief Turn off any noise models.
   void reset_noise(std::size_t qpu_id = 0);
@@ -229,12 +222,6 @@ protected:
 
   /// Destroy all of the platform's QPUs and runtime endpoints.
   void clearQPUs();
-
-  /// The runtime target settings
-  std::unique_ptr<RuntimeTarget> runtimeTarget;
-
-  /// Code generation configuration
-  std::optional<CodeGenConfig> codeGenConfig;
 
   /// Name of the platform.
   std::string platformName;

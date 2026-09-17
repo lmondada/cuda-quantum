@@ -12,6 +12,7 @@
 #include "common/AnalogHamiltonian.h"
 #include "common/ArgumentWrapper.h"
 #include "common/Environment.h"
+#include "common/ExecutionContext.h"
 #include "common/Timing.h"
 #include "cudaq_internal/compiler/ArgumentConversion.h"
 #include "cudaq_internal/compiler/CompiledModuleHelper.h"
@@ -700,14 +701,20 @@ static std::size_t digestLogValue(const std::array<uint8_t, 32> &digest) {
   return value;
 }
 
+static std::size_t currentCompileQpuId() {
+  auto *ctx = cudaq::getExecutionContext();
+  return ctx ? ctx->qpuId : cudaq::getCurrentQpuId();
+}
+
 /// Construct the compiler config (`CompileTarget` and `CompileOptions`) from
 /// the current execution context.
 static std::pair<cudaq::CompileTarget, cudaq::CompileOptions>
 getCompileConfig(std::optional<cudaq::CompileTarget> target = std::nullopt) {
   auto *ctx = cudaq::getExecutionContext();
+  const std::size_t qpuId = currentCompileQpuId();
   cudaq::CompileOptions options;
   if (!target)
-    target = cudaq::get_compile_target();
+    target = cudaq::get_compile_target(qpuId);
   if (!ctx) {
     options = cudaq::get_compile_options(cudaq::other_policies{});
   } else {
@@ -721,11 +728,12 @@ getCompileConfig(std::optional<cudaq::CompileTarget> target = std::nullopt) {
     });
   }
 
-  const bool isEmulated = cudaq::is_emulated_platform();
-  const bool isRemote = cudaq::is_remote_platform();
+  auto &platform = cudaq::get_platform();
+  const bool isEmulated = platform.is_emulated(qpuId);
+  const bool isRemote = platform.is_remote(qpuId);
   options.emulate = isEmulated;
   options.emitJit |= !isRemote;
-  if (!cudaq::platform_supports_jit())
+  if (!platform.supports_jit(qpuId))
     options.emitJit = false;
   options.boolVecBitPacked = !isRemote && !isEmulated;
 
@@ -1051,11 +1059,13 @@ cudaq::clean_launch_module(const std::string &name, ModuleOp mod,
 }
 
 cudaq::OpaqueArguments cudaq::marshal_arguments_for_module_launch(
-    ModuleOp mod, nanobind::args runtimeArgs, func::FuncOp kernelFunc) {
+    ModuleOp mod, nanobind::args runtimeArgs, func::FuncOp kernelFunc,
+    std::size_t qpu_id) {
   // Convert python arguments to opaque form.
   cudaq::OpaqueArguments args;
+  auto &platform = cudaq::get_platform();
   bool isLocalSimulator =
-      !(cudaq::is_remote_platform() || cudaq::is_emulated_platform());
+      !(platform.is_remote(qpu_id) || platform.is_emulated(qpu_id));
   auto handler = [&](cudaq::OpaqueArguments &args, nanobind::object &pyArg,
                      unsigned pos) {
     return linkResolvedCallable(mod, kernelFunc, pos, pyArg);
@@ -1091,7 +1101,8 @@ nanobind::object cudaq::marshal_and_launch_module(
   auto kernelFunc = getKernelFuncOp(module, name);
   auto mod = unwrap(module);
   Type retTy = cudaq::runtime::getReturnType(kernelFunc);
-  auto args = marshal_arguments_for_module_launch(mod, runtimeArgs, kernelFunc);
+  auto args = marshal_arguments_for_module_launch(
+      mod, runtimeArgs, kernelFunc, currentCompileQpuId());
 
   [[maybe_unused]] auto resultPtr =
       clean_launch_module(name, mod, args, std::move(cache));
@@ -1111,8 +1122,8 @@ marshal_and_retain_module(const std::string &name, MlirModule module,
   auto kernelFunc = cudaq::getKernelFuncOp(module, name);
   auto mod = unwrap(module);
   Type retTy = cudaq::runtime::getReturnType(kernelFunc);
-  auto args =
-      cudaq::marshal_arguments_for_module_launch(mod, runtimeArgs, kernelFunc);
+  auto args = cudaq::marshal_arguments_for_module_launch(
+      mod, runtimeArgs, kernelFunc, currentCompileQpuId());
   // Append space for a result, as needed, to the vector of arguments.
   auto rawArgs = appendResultToArgsVector(args, retTy, mod, name);
   mlir::OwningOpRef<ModuleOp> clone = mod.clone();

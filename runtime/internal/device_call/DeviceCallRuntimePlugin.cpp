@@ -8,7 +8,7 @@
 
 #include "cudaq_internal/device_call/DeviceCallRuntimePlugin.h"
 
-#include "common/RuntimeTarget.h"
+#include "cudaq/platform/RuntimeEndpoint.h"
 #include "cudaq/runtime/logger/logger.h"
 
 #include <stdexcept>
@@ -29,8 +29,8 @@ public:
     cudaq_internal::device_call::initializeDeviceCallRuntime(argc, argv);
   }
 
-  void validate(const cudaq::RuntimeTarget *target) override {
-    if (!target || !target->config.GpuRequired ||
+  void validate(const cudaq::RuntimeEndpoint *endpoint) override {
+    if (!endpoint || !endpoint->gpuRequired ||
         !cudaq_internal::device_call::isGpuDispatchRuntimeConfigured())
       return;
 
@@ -41,7 +41,8 @@ public:
     throw std::runtime_error(
         "cudaq::realtime GPU dispatch is not supported with GPU simulator "
         "target '" +
-        target->name + "'. Use host dispatch or a CPU simulator target.");
+        endpoint->targetName +
+        "'. Use host dispatch or a CPU simulator target.");
   }
 
   void finalize() override {
