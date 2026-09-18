@@ -91,6 +91,13 @@ struct RuntimeEndpoint {
   /// Whether the RuntimeEndpoint consumes JIT-compiled artifacts.
   bool supportsJit = true;
 
+  /// Whether this QPU runs without the MLIR/QIR kernel launch path.
+  bool libraryMode = false;
+  /// Whether this target requires a GPU (used by realtime validation).
+  bool gpuRequired = false;
+  /// Target name for diagnostics (e.g. realtime GPU dispatch conflict).
+  std::string targetName;
+
   /// Store any RuntimeEndpoint state here. Passed by mutable reference to each
   /// launch invocation.
   std::any impl;

@@ -13,6 +13,7 @@
 #include "cudaq/Support/Plugin.h"
 #include "cudaq/Support/Version.h"
 #include "cudaq/Target/TargetConfigYaml.h"
+#include "cudaq/platform.h"
 #include "cudaq/platform/qpu_utils.h"
 #include "cudaq/platform/quantum_platform.h"
 #include "cudaq/runtime/logger/logger.h"
@@ -557,10 +558,6 @@ void LinkedLibraryHolder::setTarget(
   __nvqir__setCircuitSimulator(getSimulator(simName));
   auto *platform = getPlatform(target.platformName);
 
-  // Provide the already-parsed target config so that
-  // DefaultQuantumPlatform::setTargetBackend can skip re-reading the YAML.
-  platform->runtimeTarget = std::make_unique<cudaq::RuntimeTarget>(target);
-
   // Pack the config into the backend string name
   std::string backendConfigStr = targetName;
   for (auto &[key, value] : extraConfig)
@@ -620,11 +617,13 @@ std::vector<RuntimeTarget> LinkedLibraryHolder::getTargets() const {
 
 std::string python::getTransportLayer(LinkedLibraryHolder *holder) {
   if (holder && cudaq::detail::canModifyTarget()) {
-    auto runtimeTarget = holder->getTarget();
-    const std::string codegenEmission =
-        runtimeTarget.config.getCodeGenSpec(runtimeTarget.runtimeConfig);
-    if (!codegenEmission.empty())
-      return codegenEmission;
+    auto *platform = getQuantumPlatformInternal();
+    if (platform && platform->num_qpus() > 0) {
+      const std::string codegenEmission =
+          platform->getCompileTarget().pipelineConfig.codegenTranslation;
+      if (!codegenEmission.empty())
+        return codegenEmission;
+    }
   }
   // Default is full QIR.
   return "qir:0.1";

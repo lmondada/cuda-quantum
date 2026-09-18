@@ -102,7 +102,7 @@ TEST(OrcaPolicyTester, PublicApisReturnEndpointResults) {
 
   auto &platform = cudaq::get_platform();
   cudaq::detail::PlatformTestAccess::setTarget(
-      platform, cudaq::createDefaultCompileTarget(&platform), endpoint);
+      platform, cudaq::createDefaultCompileTarget(), endpoint);
 
   std::vector<std::size_t> inputState{1};
   std::vector<std::size_t> loopLengths{1};

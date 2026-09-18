@@ -45,7 +45,7 @@ auto launch(const Policy &policy, std::size_t qpu_id, ExecutionContext &ctx,
 
   // Python builds without CUDAQ_LIBRARY_MODE defined, so we need to check for
   // it at runtime
-  bool library_mode = platform.is_library_mode();
+  bool library_mode = platform.is_library_mode(qpu_id);
 #ifdef CUDAQ_LIBRARY_MODE
   library_mode = true;
 #endif

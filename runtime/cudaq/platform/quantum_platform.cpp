@@ -12,12 +12,12 @@
 #include "common/Environment.h"
 #include "common/ExecutionContext.h"
 #include "common/PluginUtils.h"
-#include "common/RuntimeTarget.h"
 #include "cudaq/Target/TargetConfig.h"
 #include "cudaq/algorithms/policy_dispatch.h"
 #include "cudaq/platform/qpu.h"
 #include "cudaq/runtime/logger/logger.h"
 #include <exception>
+#include <map>
 #include <string>
 
 using namespace cudaq_internal::compiler;
@@ -101,18 +101,14 @@ void quantum_platform::reset_noise(std::size_t qpu_id) {
 
 std::size_t get_random_seed();
 
-cudaq::CompileTarget createDefaultCompileTarget(const RuntimeTarget *rt) {
+cudaq::CompileTarget createDefaultCompileTarget(
+    const config::TargetConfig &targetConfig,
+    std::map<std::string, std::string> runtimeConfig) {
   const bool enablePythonCodegenDump =
       cudaq::getEnvBool("CUDAQ_PYTHON_CODEGEN_DUMP", false);
   if (enablePythonCodegenDump) {
     CUDAQ_WARN("CUDAQ_PYTHON_CODEGEN_DUMP is no longer supported. Use "
                "CUDAQ_MLIR_PRINT_EACH_PASS=argsynth instead.");
-  }
-  cudaq::config::TargetConfig targetConfig;
-  std::map<std::string, std::string> runtimeConfig;
-  if (rt) {
-    targetConfig = rt->config;
-    runtimeConfig = rt->runtimeConfig;
   }
   if (auto seed = cudaq::get_random_seed(); seed != 0)
     runtimeConfig.emplace("seed", std::to_string(seed));
@@ -123,14 +119,6 @@ cudaq::CompileTarget createDefaultCompileTarget(const RuntimeTarget *rt) {
   ct.pipelineConfig.codegenTranslation = "qir:";
   ct.overrideAOTCompilation = false;
   return ct;
-}
-
-cudaq::CompileTarget
-createDefaultCompileTarget(quantum_platform *platform = nullptr) {
-  if (!platform)
-    platform = getQuantumPlatformInternal();
-
-  return createDefaultCompileTarget(platform->get_runtime_target());
 }
 
 std::future<sample_result>
@@ -277,7 +265,7 @@ QPU &quantum_platform::addQPU(std::unique_ptr<QPU> qpu) {
   if (!qpu)
     throw std::invalid_argument("Cannot add a null QPU to the platform.");
 
-  compileTargets.push_back(qpu->getCompileTarget(runtimeTarget.get()));
+  compileTargets.push_back(qpu->getCompileTarget());
   runtimeEndpoints.push_back(RuntimeEndpoint::fromQPU(std::move(qpu)));
   return *runtimeEndpoints.back().getQPU();
 }
@@ -298,6 +286,12 @@ RuntimeEndpoint &quantum_platform::getRuntimeEndpoint(std::size_t qpuId) {
   return runtimeEndpoints[qpuId];
 }
 
+const RuntimeEndpoint &
+quantum_platform::getRuntimeEndpoint(std::size_t qpuId) const {
+  validateQpuId(qpuId);
+  return runtimeEndpoints[qpuId];
+}
+
 void quantum_platform::onRandomSeedSet(std::size_t seed) {
   // Send on the notification to all QPUs.
   for (auto &endpoint : runtimeEndpoints) {
@@ -308,16 +302,21 @@ void quantum_platform::onRandomSeedSet(std::size_t seed) {
   }
 }
 
-cudaq::CodeGenConfig quantum_platform::get_codegen_config() {
-  if (runtimeTarget &&
-      !runtimeTarget->config.getCodeGenSpec(runtimeTarget->runtimeConfig)
-           .empty()) {
-    auto config = cudaq::parseCodeGenTranslation(
-        runtimeTarget->config.getCodeGenSpec(runtimeTarget->runtimeConfig));
-    return config;
-  }
+cudaq::CodeGenConfig
+quantum_platform::get_codegen_config(std::size_t qpu_id) const {
+  validateQpuId(qpu_id);
+  const auto &translation =
+      compileTargets[qpu_id].pipelineConfig.codegenTranslation;
+  const bool isGenericFullQir =
+      translation.empty() || translation == "qir" ||
+      translation.starts_with("qir:") || translation == "qir-full" ||
+      translation.starts_with("qir-full:");
+  if (!isGenericFullQir)
+    return cudaq::parseCodeGenTranslation(translation);
 
-  // The target config doesn't specify a codegen setting
+  // Local simulators compile as full QIR (`qir:`). `run` still needs the
+  // adaptive-profile output log, which the YAML codegen spec would have
+  // provided on the old platform-wide RuntimeTarget.
   CodeGenConfig config = {.profile = "qir-adaptive",
                           .isQIRProfile = true,
                           .version = QirVersion::version_1_0,
@@ -327,7 +326,7 @@ cudaq::CodeGenConfig quantum_platform::get_codegen_config() {
                           .isBaseProfile = false,
                           .integerComputations = true,
                           .floatComputations = true,
-                          .outputLog = !is_remote(),
+                          .outputLog = !is_remote(qpu_id),
                           .eraseStackBounding = false,
                           .eraseRecordCalls = false,
                           .allowAllInstructions = true};
@@ -335,18 +334,13 @@ cudaq::CodeGenConfig quantum_platform::get_codegen_config() {
   return config;
 }
 
-const RuntimeTarget *quantum_platform::get_runtime_target() const {
-  return runtimeTarget.get();
-}
-
-bool quantum_platform::is_library_mode() const {
+bool quantum_platform::is_library_mode(std::size_t qpu_id) const {
   if (libraryModeOverride > 0)
     return true;
-  const auto *rt = get_runtime_target();
-  if (!rt || !rt->config.BackendConfig)
+  if (compileTargets.empty())
     return false;
-  auto &bc = rt->config.BackendConfig.value();
-  return !bc.LibraryModeExecutionManager.empty();
+  validateQpuId(qpu_id);
+  return runtimeEndpoints[qpu_id].libraryMode;
 }
 } // namespace cudaq
 

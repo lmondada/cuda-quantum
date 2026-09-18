@@ -71,7 +71,7 @@ void samplePreamble(ExecutionContext &ctx, sample_policy &policy,
         "' uses conditional feedback. Use `cudaq::run` or `cudaq::run_async` "
         "instead. See CUDA-Q documentation for migration guide.");
 
-  if (explicitMeasurements && !platform.supports_explicit_measurements())
+  if (explicitMeasurements && !platform.supports_explicit_measurements(qpu_id))
     throw std::runtime_error("The sampling option `explicit_measurements` is "
                              "not supported on this target.");
 

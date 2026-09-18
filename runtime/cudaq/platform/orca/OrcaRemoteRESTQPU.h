@@ -95,7 +95,7 @@ public:
   using QPU::getCompileTarget;
   using QPU::launchKernel;
 
-  CompileTarget getCompileTarget(const RuntimeTarget * = nullptr) override {
+  CompileTarget getCompileTarget() override {
     return {.overrideAOTCompilation = false};
   }
 

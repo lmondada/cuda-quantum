@@ -117,6 +117,33 @@ def test_pipeline_config_controls_compiled_ir():
     assert len(controlled_x) == 3
 
 
+def test_nonzero_qpu_id_selects_compile_target():
+    """Compilation must use the CompileTarget of the execution-context QPU."""
+    qpu0 = CapturingEndpoint()
+    qpu1 = CapturingEndpoint()
+    set_custom_target(CompileTarget(), endpoint=qpu0)
+    cudaq_runtime.testing.add_qpu(swap_pipeline_target(), qpu1)
+
+    kernel = make_swap_kernel()
+    ctx = cudaq_runtime.ExecutionContext("sample", 1, 1)
+    ctx.kernelName = kernel.name
+    policy = cudaq_runtime.SamplePolicy(ctx, kernel.name, False)
+    cudaq_runtime.launch_sample(policy, ctx, lambda: kernel())
+
+    assert qpu1.mlir_module is not None, "qpu 1 was not handed a compiled module"
+    assert qpu0.mlir_module is None, "qpu 0 should not have been launched"
+
+    ops = []
+
+    def visit(op):
+        if op.name.startswith("quake."):
+            ops.append(op.name)
+        return WalkResult.ADVANCE
+
+    qpu1.mlir_module.operation.walk(visit)
+    assert all(name != "quake.swap" for name in ops)
+
+
 def test_compile_target_does_not_leak_after_switch():
     """A compile target must not survive a target change.
 

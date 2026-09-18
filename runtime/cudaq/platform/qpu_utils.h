@@ -18,11 +18,13 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 
 namespace cudaq {
 class Executor;
 class QuantumExecutionQueue;
 class ServerHelper;
+struct RuntimeEndpoint;
 namespace config {
 class TargetConfig;
 } // namespace config
@@ -41,6 +43,22 @@ std::string decodeBase64(const std::string &encoded);
 /// configuration string. Values prefixed with `base64_` are decoded.
 std::optional<std::string> getBackendConfigOption(const std::string &backend,
                                                   std::string_view key);
+
+/// @brief Parse a `;`-delimited backend string into the target name and
+/// key-value map.
+std::pair<std::string, std::map<std::string, std::string>>
+parseBackendConfigString(const std::string &backend);
+
+/// @brief Load the YAML `TargetConfig` for @p backend. Handles `__yml_path`
+/// and loads declared plugin libraries. Returns an empty config if no YAML
+/// file exists.
+config::TargetConfig loadBackendTargetConfig(const std::string &backend);
+
+/// @brief Copy library-mode / GPU / identity metadata from @p config onto
+/// @p endpoint.
+void applyTargetMetadata(RuntimeEndpoint &endpoint,
+                         const config::TargetConfig &config,
+                         std::string targetName);
 
 /// @brief Return the explicitly configured target YAML path, or @p fallback
 /// when the backend configuration does not provide `__yml_path`.

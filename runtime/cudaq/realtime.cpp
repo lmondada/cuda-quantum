@@ -58,10 +58,11 @@ namespace cudaq::realtime {
 
 void initialize(int argc, char **argv) {
 #if defined(CUDAQ_ENABLE_REALTIME)
-  getRealtimeRuntimePlugin().initialize(argc, argv);
-  // Validate the initialized runtime against the selected CUDA-Q target.
-  getRealtimeRuntimePlugin().validate(
-      cudaq::get_platform().get_runtime_target());
+  auto &plugin = getRealtimeRuntimePlugin();
+  plugin.initialize(argc, argv);
+  auto &platform = cudaq::get_platform();
+  for (std::size_t qpuId = 0; qpuId < platform.num_qpus(); ++qpuId)
+    plugin.validate(&platform.getRuntimeEndpoint(qpuId));
 #else
   (void)argc;
   (void)argv;

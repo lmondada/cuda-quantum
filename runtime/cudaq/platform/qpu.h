@@ -25,7 +25,6 @@ class gradient;
 class optimizer;
 class noise_model;
 class ExecutionContext;
-struct RuntimeTarget;
 
 // forward declare the spin_op type
 template <typename T>
@@ -171,8 +170,7 @@ public:
   [[nodiscard]] virtual KernelThunkResultType
   unifiedLaunchModule(const AnyModule &module, KernelArgs args);
 
-  [[nodiscard]] virtual CompileTarget
-  getCompileTarget(const RuntimeTarget *rt = nullptr);
+  [[nodiscard]] virtual CompileTarget getCompileTarget();
 
   /// @brief Notify the QPU that a new random seed value is set.
   /// By default do nothing, let subclasses override.

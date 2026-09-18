@@ -77,7 +77,7 @@ int main() {
   endpoint.dispatch.set<async_sample_policy>(mockSampleAsync);
   auto &platform = get_platform();
   detail::PlatformTestAccess::setTarget(
-      platform, createDefaultCompileTarget(&platform), endpoint);
+      platform, createDefaultCompileTarget(), endpoint);
 
   auto syncResult = detail::launchAnalogKernel(
       "__analog_hamiltonian_kernel__sync", R"({"sync":true})", 11);

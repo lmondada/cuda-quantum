@@ -28,6 +28,11 @@ public:
                      const RuntimeEndpoint &endpoint) {
     platform.addQPU(target, endpoint);
   }
+
+  static void setTargetBackend(quantum_platform &platform,
+                               const std::string &backend) {
+    platform.setTargetBackend(backend);
+  }
 };
 
 } // namespace cudaq::detail

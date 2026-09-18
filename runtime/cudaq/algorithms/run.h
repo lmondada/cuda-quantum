@@ -78,14 +78,14 @@ inline run_result launchRun(std::function<void()> kernel,
   ScopedTraceWithContext(cudaq::TIMING_RUN, "launchRun");
 
   // Some platforms do not support run yet, emit error.
-  if (!platform.get_codegen_config().outputLog)
+  if (!platform.get_codegen_config(qpu_id).outputLog)
     throw std::runtime_error("`run` is not yet supported on this target.");
 
   run_result result;
   run_policy policy;
   policy.kernelName = kernel_name;
   policy.noiseModel = platform.get_noise(qpu_id);
-  if (platform.is_remote()) {
+  if (platform.is_remote(qpu_id)) {
     cudaq::ExecutionContext ctx("run", shots, qpu_id);
     ctx.kernelName = kernel_name;
     ctx.noiseModel = policy.noiseModel;
@@ -95,7 +95,7 @@ inline run_result launchRun(std::function<void()> kernel,
     result =
         detail::launch(asyncPolicy, qpu_id, ctx, platform, std::move(kernel))
             .get();
-  } else if (platform.is_emulated()) {
+  } else if (platform.is_emulated(qpu_id)) {
     // In a remote simulator execution or hardware emulation environment, set
     // the `run` context name and number of iterations (shots)
     cudaq::ExecutionContext ctx("run", shots, qpu_id);
@@ -381,7 +381,7 @@ run_async(std::size_t qpu_id, std::size_t shots,
   if (qpu_id >= platform.num_qpus())
     throw std::invalid_argument(
         "Provided qpu_id is invalid (must be <= to platform.num_qpus()).");
-  if (platform.is_remote())
+  if (platform.is_remote(qpu_id))
     throw std::runtime_error(
         "Noise model is not supported on remote platforms.");
   // Launch the kernel in the appropriate context.
