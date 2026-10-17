@@ -160,6 +160,13 @@ std::size_t std::hash<cudaq::config::CustomPipelineLowering>::operator()(
       lowering.midLevelPipeline, lowering.lowLevelPipeline);
 }
 
+std::size_t std::hash<cudaq::config::DefaultLowering>::operator()(
+    const cudaq::config::DefaultLowering &) const noexcept {
+  // Fixed tag: the lowering kind contributes to stage hashes, keeping an
+  // inferred lowering distinct from any custom pipeline (even an empty one).
+  return 0x5e1f9a3b;
+}
+
 std::size_t std::hash<cudaq::config::Codegen>::operator()(
     const cudaq::config::Codegen &codegen) const noexcept {
   return cudaq::detail::hashVal(codegen.emissionFormat,

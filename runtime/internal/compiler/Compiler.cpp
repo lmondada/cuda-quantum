@@ -124,7 +124,12 @@ cudaq_internal::compiler::Compiler::loadQuakeCodeByName(
 
 cudaq_internal::compiler::Compiler::Compiler(
     const cudaq::CompileTarget &target_, const cudaq::CompileOptions &options_)
-    : target(target_), options(options_) {
+    : Compiler(target_, options_, makeBuiltinLoweringHandlers()) {}
+
+cudaq_internal::compiler::Compiler::Compiler(
+    const cudaq::CompileTarget &target_, const cudaq::CompileOptions &options_,
+    std::vector<std::unique_ptr<LoweringHandler>> handlers_)
+    : target(target_), options(options_), handlers(std::move(handlers_)) {
   emulate = options.emulate;
 
   cudaq_internal::compiler::initializeMLIR();
@@ -300,7 +305,11 @@ cudaq_internal::compiler::Compiler::executeMainPipeline(
   if (options.skipTargetLoweringPipeline || !target.hasPassPipeline()) {
     return {false, ""};
   }
-  auto passPipelineConfig = getPassPipeline(target, options);
+  std::string diagnostic;
+  auto stagedPipeline = getPassPipeline(target, options, handlers, diagnostic);
+  if (!stagedPipeline)
+    throw std::runtime_error(diagnostic);
+  auto passPipelineConfig = std::move(*stagedPipeline);
   auto combineMeasurements =
       passPipelineConfig.find("combine-measurements") != std::string::npos;
   if (emulate && combineMeasurements) {

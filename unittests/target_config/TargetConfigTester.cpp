@@ -207,6 +207,14 @@ compile-target:
   EXPECT_TRUE(config.BackendConfig->hasPassPipeline());
 }
 
+TEST(TargetConfigTester, hasPassPipelineCountsInferredLoweringAsActive) {
+  cudaq::config::BackendEndConfigEntry backend;
+  backend.CompileTarget.stages.push_back(cudaq::config::CompilationStage{
+      .irOutputProfile = cudaq::config::UncheckedProfile{},
+      .lowering = cudaq::config::DefaultLowering{}});
+  EXPECT_TRUE(backend.hasPassPipeline());
+}
+
 TEST(TargetConfigTester, hasPassPipelineMultistageAndInactive) {
   cudaq::config::BackendEndConfigEntry backend;
   EXPECT_FALSE(backend.hasPassPipeline());
@@ -216,11 +224,9 @@ TEST(TargetConfigTester, hasPassPipelineMultistageAndInactive) {
       .lowering = cudaq::config::CustomPipelineLowering{}});
   EXPECT_FALSE(backend.hasPassPipeline());
 
-  // TODO: replace with an inferred `DefaultLowering` once available.
   backend.CompileTarget.stages.push_back(cudaq::config::CompilationStage{
       .irOutputProfile = cudaq::config::PhysicalQuakeProfile{},
-      .lowering =
-          cudaq::config::CustomPipelineLowering{.highLevelPipeline = "cse"}});
+      .lowering = cudaq::config::DefaultLowering{}});
   EXPECT_TRUE(backend.hasPassPipeline());
 
   backend.CompileTarget.stages.back().lowering =
@@ -285,6 +291,34 @@ TEST(TargetConfigTester, physicalQuakeProfileTargetIdentity) {
   EXPECT_NE(target, changed);
   EXPECT_NE(std::hash<cudaq::CompileTarget>{}(target),
             std::hash<cudaq::CompileTarget>{}(changed));
+}
+
+TEST(TargetConfigTester, inferredLoweringIdentityAndHash) {
+  using cudaq::config::CustomPipelineLowering;
+  using cudaq::config::DefaultLowering;
+  using cudaq::config::UncheckedProfile;
+
+  const auto singleStageTarget = [](cudaq::config::Lowering lowering) {
+    cudaq::CompileTarget target;
+    target.stages.push_back({UncheckedProfile{}, std::move(lowering)});
+    return target;
+  };
+  const auto inferred = singleStageTarget(DefaultLowering{});
+  const auto alsoInferred = singleStageTarget(DefaultLowering{});
+  const auto emptyCustom = singleStageTarget(CustomPipelineLowering{});
+  const auto custom =
+      singleStageTarget(CustomPipelineLowering{.highLevelPipeline = "canon"});
+
+  // Inferred lowering is its own kind: equal to itself, distinct from every
+  // custom pipeline, including an empty one.
+  EXPECT_EQ(inferred, alsoInferred);
+  EXPECT_NE(inferred, emptyCustom);
+  EXPECT_NE(inferred, custom);
+
+  const std::hash<cudaq::CompileTarget> targetHash;
+  EXPECT_EQ(targetHash(inferred), targetHash(alsoInferred));
+  EXPECT_NE(targetHash(inferred), targetHash(emptyCustom));
+  EXPECT_NE(targetHash(inferred), targetHash(custom));
 }
 
 TEST(TargetConfigTester, v2RejectsV1CompilationKeys) {

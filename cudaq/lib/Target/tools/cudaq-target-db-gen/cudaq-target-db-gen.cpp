@@ -248,6 +248,18 @@ std::string cxxCustomPipelineLowering(
   return os.str();
 }
 
+std::string cxxLowering(const cudaq::config::Lowering &lowering) {
+  return std::visit(
+      [](const auto &l) -> std::string {
+        using T = std::decay_t<decltype(l)>;
+        if constexpr (std::is_same_v<T, cudaq::config::CustomPipelineLowering>)
+          return cxxCustomPipelineLowering(l);
+        else if constexpr (std::is_same_v<T, cudaq::config::DefaultLowering>)
+          return "cudaq::config::DefaultLowering{}";
+      },
+      lowering);
+}
+
 std::string cxxStage(const cudaq::config::CompilationStage &stage) {
   std::ostringstream os;
   os << "cudaq::config::CompilationStage{"
@@ -263,10 +275,7 @@ std::string cxxStage(const cudaq::config::CompilationStage &stage) {
              << cxxPhysicalQuakeProfile(p) << "}";
       },
       stage.irOutputProfile);
-  os << ", .lowering = "
-     << std::visit([](const auto &l) { return cxxCustomPipelineLowering(l); },
-                   stage.lowering)
-     << "}";
+  os << ", .lowering = " << cxxLowering(stage.lowering) << "}";
   return os.str();
 }
 

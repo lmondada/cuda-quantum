@@ -28,15 +28,37 @@ static void setQubitMappingBypass(std::string &pipeline) {
   pipeline = std::regex_replace(pipeline, qubitMapping, replacement);
 }
 
+namespace {
+/// Inputs required to build the passes of a single compile target stage.
+struct StageResolutionContext {
+  const cudaq::CompileTarget &target;
+  const cudaq::CompileOptions &options;
+  const std::vector<std::unique_ptr<cudaq_internal::compiler::LoweringHandler>>
+      &handlers;
+  const cudaq::config::Profile &inputProfile;
+  const cudaq::config::Profile &outputProfile;
+};
+} // namespace
+
+/// Name of the profile kind, for diagnostics.
+static std::string_view getProfileName(const cudaq::config::Profile &profile) {
+  return std::visit(
+      [](const auto &profile) { return std::string_view(profile.name); },
+      profile);
+}
+
 /// Append the JIT pipeline built around the user-provided pipelines of a
 /// `CustomPipelineLowering` to `passPipeline`.
-static void appendResolvedStagePipeline(
+static bool appendResolvedStagePipeline(
     std::string &passPipeline,
     const cudaq::config::CustomPipelineLowering &lowering,
-    const cudaq::CompileTarget &target, const cudaq::CompileOptions &options) {
+    const StageResolutionContext &ctx, std::string &) {
+  const auto &target = ctx.target;
+  const auto &options = ctx.options;
+
   if (!lowering.overridePassPipeline.empty()) {
     appendPipelineStage(passPipeline, lowering.overridePassPipeline);
-    return;
+    return true;
   }
 
   const std::string lowerDeviceCalls =
@@ -79,18 +101,60 @@ static void appendResolvedStagePipeline(
                "pipeline to {}",
                passPipeline);
   }
+  return true;
 }
 
-std::string cudaq_internal::compiler::getPassPipeline(
-    const cudaq::CompileTarget &target, const cudaq::CompileOptions &options) {
-  std::string passPipeline;
+/// Infer the pipeline using the provided lowering handlers and append it to
+/// `passPipeline`. On failure, sets `diagnostic` and returns false.
+static bool appendResolvedStagePipeline(std::string &passPipeline,
+                                        const cudaq::config::DefaultLowering &,
+                                        const StageResolutionContext &ctx,
+                                        std::string &diagnostic) {
+  const auto *handler = cudaq_internal::compiler::selectLoweringHandler(
+      ctx.handlers, ctx.inputProfile, ctx.outputProfile);
+  std::optional<std::string> pipeline;
+  const char *failure = "no lowering handler supports lowering from ";
+  if (handler) {
+    pipeline = handler->getPipeline(ctx.inputProfile, ctx.outputProfile);
+    failure = "the selected lowering handler failed to construct a "
+              "pipeline from ";
+  }
+  if (!pipeline) {
+    diagnostic = failure;
+    diagnostic += getProfileName(ctx.inputProfile);
+    diagnostic += " to ";
+    diagnostic += getProfileName(ctx.outputProfile);
+    return false;
+  }
+  appendPipelineStage(passPipeline, *pipeline);
+  return true;
+}
 
-  for (const auto &stage : target.stages)
-    std::visit(
+std::optional<std::string> cudaq_internal::compiler::getPassPipeline(
+    const cudaq::CompileTarget &target, const cudaq::CompileOptions &options,
+    const std::vector<std::unique_ptr<LoweringHandler>> &handlers,
+    std::string &diagnostic) {
+  std::string passPipeline;
+  cudaq::config::Profile inputProfile = cudaq::config::UncheckedProfile{};
+
+  for (std::size_t i = 0; i < target.stages.size(); ++i) {
+    const auto &stage = target.stages[i];
+    const StageResolutionContext ctx{target, options, handlers, inputProfile,
+                                     stage.irOutputProfile};
+    std::string stageDiagnostic;
+    const bool success = std::visit(
         [&](const auto &lowering) {
-          appendResolvedStagePipeline(passPipeline, lowering, target, options);
+          return appendResolvedStagePipeline(passPipeline, lowering, ctx,
+                                             stageDiagnostic);
         },
         stage.lowering);
+    if (!success) {
+      diagnostic = "compile target stage " + std::to_string(i + 1) + ": " +
+                   stageDiagnostic;
+      return std::nullopt;
+    }
+    inputProfile = stage.irOutputProfile;
+  }
 
   return passPipeline;
 }
