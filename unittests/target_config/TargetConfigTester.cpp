@@ -196,13 +196,44 @@ compile-target:
 )",
                                                        {});
   ASSERT_TRUE(config.BackendConfig.has_value());
-  const auto &lowering =
-      config.BackendConfig->CompileTarget.getCustomPipelineLowering();
-  EXPECT_EQ(lowering.overridePassPipeline, "canonicalize,cse");
-  EXPECT_TRUE(lowering.highLevelPipeline.empty());
-  EXPECT_TRUE(lowering.midLevelPipeline.empty());
-  EXPECT_TRUE(lowering.lowLevelPipeline.empty());
+  ASSERT_EQ(config.BackendConfig->CompileTarget.stages.size(), 1);
+  const auto *lowering = std::get_if<cudaq::config::CustomPipelineLowering>(
+      &config.BackendConfig->CompileTarget.stages[0].lowering);
+  ASSERT_NE(lowering, nullptr);
+  EXPECT_EQ(lowering->overridePassPipeline, "canonicalize,cse");
+  EXPECT_TRUE(lowering->highLevelPipeline.empty());
+  EXPECT_TRUE(lowering->midLevelPipeline.empty());
+  EXPECT_TRUE(lowering->lowLevelPipeline.empty());
   EXPECT_TRUE(config.BackendConfig->hasPassPipeline());
+}
+
+TEST(TargetConfigTester, hasPassPipelineMultistageAndInactive) {
+  cudaq::config::BackendEndConfigEntry backend;
+  EXPECT_FALSE(backend.hasPassPipeline());
+
+  backend.CompileTarget.stages.push_back(cudaq::config::CompilationStage{
+      .irOutputProfile = cudaq::config::UncheckedProfile{},
+      .lowering = cudaq::config::CustomPipelineLowering{}});
+  EXPECT_FALSE(backend.hasPassPipeline());
+
+  // TODO: replace with an inferred `DefaultLowering` once available.
+  backend.CompileTarget.stages.push_back(cudaq::config::CompilationStage{
+      .irOutputProfile = cudaq::config::PhysicalQuakeProfile{},
+      .lowering =
+          cudaq::config::CustomPipelineLowering{.highLevelPipeline = "cse"}});
+  EXPECT_TRUE(backend.hasPassPipeline());
+
+  backend.CompileTarget.stages.back().lowering =
+      cudaq::config::CustomPipelineLowering{.overridePassPipeline =
+                                                "canonicalize"};
+  EXPECT_TRUE(backend.hasPassPipeline());
+
+  // Two stages whose custom pipelines are both empty stay inactive.
+  backend.CompileTarget.stages.front().lowering =
+      cudaq::config::CustomPipelineLowering{};
+  backend.CompileTarget.stages.back().lowering =
+      cudaq::config::CustomPipelineLowering{};
+  EXPECT_FALSE(backend.hasPassPipeline());
 }
 
 TEST(TargetConfigTester, physicalQuakeProfileDefaults) {
@@ -751,9 +782,11 @@ config:
   ASSERT_EQ(targets.count("my-backend"), 1);
   const auto &config = targets.at("my-backend").config;
   ASSERT_TRUE(config.BackendConfig.has_value());
-  const auto &lowering =
-      config.BackendConfig->CompileTarget.getCustomPipelineLowering();
-  EXPECT_EQ(lowering.midLevelPipeline,
+  ASSERT_EQ(config.BackendConfig->CompileTarget.stages.size(), 1);
+  const auto &lowering = std::get_if<cudaq::config::CustomPipelineLowering>(
+      &config.BackendConfig->CompileTarget.stages[0].lowering);
+  ASSERT_NE(lowering, nullptr);
+  EXPECT_EQ(lowering->midLevelPipeline,
             "map{device=file(" + expectedTopology + ")}");
   ASSERT_EQ(config.BackendConfig->PreprocessorDefines.size(), 1);
   EXPECT_EQ(config.BackendConfig->PreprocessorDefines.front(),

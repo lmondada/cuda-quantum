@@ -29,6 +29,9 @@ enum class MeasurementForm {
 ///
 /// Wire/value-form Quake is not part of this profile yet.
 struct PhysicalQuakeProfile {
+  /// Name identifying this profile in target configurations.
+  static constexpr char name[] = "physical-quake";
+
   /// Gates the IR is restricted to, using the basis-conversion grammar
   /// (e.g. `rx`, `x(1)`). An empty list imposes no gate-basis restriction.
   std::vector<std::string> basisGates = {};

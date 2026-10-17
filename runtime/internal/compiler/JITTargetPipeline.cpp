@@ -7,8 +7,10 @@
  ******************************************************************************/
 
 #include "cudaq_internal/compiler/Compiler.h"
+#include "cudaq/Target/CompilationStage.h"
 #include "cudaq/runtime/logger/logger.h"
 #include <regex>
+#include <variant>
 
 static void appendPipelineStage(std::string &pipeline,
                                 const std::string &stage) {
@@ -26,23 +28,28 @@ static void setQubitMappingBypass(std::string &pipeline) {
   pipeline = std::regex_replace(pipeline, qubitMapping, replacement);
 }
 
-std::string cudaq_internal::compiler::getPassPipeline(
+/// Append the JIT pipeline built around the user-provided pipelines of a
+/// `CustomPipelineLowering` to `passPipeline`.
+static void appendResolvedStagePipeline(
+    std::string &passPipeline,
+    const cudaq::config::CustomPipelineLowering &lowering,
     const cudaq::CompileTarget &target, const cudaq::CompileOptions &options) {
-  std::optional<cudaq::config::CustomPipelineLowering> pipelineConfig;
-  if (!target.stages.empty())
-    pipelineConfig = target.getCustomPipelineLowering();
+  if (!lowering.overridePassPipeline.empty()) {
+    appendPipelineStage(passPipeline, lowering.overridePassPipeline);
+    return;
+  }
+
+  const std::string lowerDeviceCalls =
+      (target.codegen.emissionFormat == "nop" && !options.emulate) ? "false"
+                                                                   : "true";
   const std::string allowEarlyExit =
       target.codegen.emissionFormat.starts_with("qir-adaptive") ? "true"
                                                                 : "false";
   const std::string noLoopUnroll =
       target.codegen.emissionFormat == "nop" ? " no-loop-unroll=true" : "";
 
-  std::string passPipeline = "canonicalize";
-
-  if (pipelineConfig && !pipelineConfig->overridePassPipeline.empty()) {
-    passPipeline = pipelineConfig->overridePassPipeline;
-    return passPipeline;
-  }
+  if (passPipeline.empty())
+    passPipeline = "canonicalize";
 
   if (options.emulate)
     appendPipelineStage(passPipeline, "emul-jit-prep-pipeline{erase-noise=true "
@@ -52,9 +59,6 @@ std::string cudaq_internal::compiler::getPassPipeline(
     appendPipelineStage(passPipeline, "hw-jit-prep-pipeline{allow-early-exit=" +
                                           allowEarlyExit + noLoopUnroll + "}");
 
-  const std::string lowerDeviceCalls =
-      (target.codegen.emissionFormat == "nop" && !options.emulate) ? "false"
-                                                                   : "true";
   const std::string deployStage =
       target.codegen.emissionFormat == "nop"
           ? "jit-deploy-pipeline{no-loop-unroll=true}"
@@ -62,14 +66,11 @@ std::string cudaq_internal::compiler::getPassPipeline(
   const std::string finalizeStage =
       "jit-finalize-pipeline{lower-device-calls=" + lowerDeviceCalls + "}";
 
-  if (pipelineConfig)
-    appendPipelineStage(passPipeline, pipelineConfig->highLevelPipeline);
+  appendPipelineStage(passPipeline, lowering.highLevelPipeline);
   appendPipelineStage(passPipeline, deployStage);
-  if (pipelineConfig)
-    appendPipelineStage(passPipeline, pipelineConfig->midLevelPipeline);
+  appendPipelineStage(passPipeline, lowering.midLevelPipeline);
   appendPipelineStage(passPipeline, finalizeStage);
-  if (pipelineConfig)
-    appendPipelineStage(passPipeline, pipelineConfig->lowLevelPipeline);
+  appendPipelineStage(passPipeline, lowering.lowLevelPipeline);
 
   // Handle disable_qubit_mapping runtime option.
   if (target.disableQubitMapping) {
@@ -78,6 +79,18 @@ std::string cudaq_internal::compiler::getPassPipeline(
                "pipeline to {}",
                passPipeline);
   }
+}
+
+std::string cudaq_internal::compiler::getPassPipeline(
+    const cudaq::CompileTarget &target, const cudaq::CompileOptions &options) {
+  std::string passPipeline;
+
+  for (const auto &stage : target.stages)
+    std::visit(
+        [&](const auto &lowering) {
+          appendResolvedStagePipeline(passPipeline, lowering, target, options);
+        },
+        stage.lowering);
 
   return passPipeline;
 }

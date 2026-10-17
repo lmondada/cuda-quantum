@@ -58,7 +58,7 @@ struct BackendFeatureMapV2 {
 
 /// (Dummy) IR profile that accepts any IR.
 struct UncheckedProfileV2 {
-  using Tag = rfl::Literal<"unchecked">;
+  using Tag = rfl::Literal<UncheckedProfile::name>;
 };
 
 /// Union of all supported IR profiles, selected by its `name`.

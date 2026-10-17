@@ -297,8 +297,7 @@ cudaq_internal::compiler::Compiler::prepareModule(const std::string &kernelName,
 std::pair<bool, std::string>
 cudaq_internal::compiler::Compiler::executeMainPipeline(
     mlir::ModuleOp moduleOp, const std::string &kernelName) {
-  if (options.skipTargetLoweringPipeline || target.stages.empty() ||
-      target.getCustomPipelineLowering().empty()) {
+  if (options.skipTargetLoweringPipeline || !target.hasPassPipeline()) {
     return {false, ""};
   }
   auto passPipelineConfig = getPassPipeline(target, options);
