@@ -7,15 +7,15 @@
  ******************************************************************************/
 
 #include "cudaq_internal/compiler/LoweringHandler.h"
-#include "cudaq/runtime/logger/logger.h"
 
 namespace {
 
 /// The built-in generic lowering handler for the physical-quake profile.
 ///
 /// Builds its pipeline from the common JIT prep/deploy/finalize stages plus
-/// the profile's requested basis-conversion and expand-measurements passes.
-/// It is generic over the profile options and never inspects provider names.
+/// the profile's requested basis-conversion, expand-measurements, and
+/// reset-before-reuse passes. It is generic over the profile options and
+/// never inspects provider names.
 class PhysicalQuakeHandler : public cudaq_internal::compiler::LoweringHandler {
   const bool emulate;
   const std::string emissionFormat;
@@ -43,11 +43,6 @@ bool PhysicalQuakeHandler::supports(
       (!std::holds_alternative<cudaq::config::UncheckedProfile>(input) &&
        !std::holds_alternative<cudaq::config::PhysicalQuakeProfile>(input)))
     return false;
-  if (physical->resetBeforeReuse) {
-    CUDAQ_WARN("physical-quake profile requests reset-before-reuse lowering, "
-               "which is not supported yet; rejecting the request");
-    return false;
-  }
   return true;
 }
 
@@ -64,18 +59,29 @@ PhysicalQuakeHandler::getPipeline(const cudaq::config::Profile &input,
   const std::string allowEarlyExit =
       emissionFormat.starts_with("qir-adaptive") ? "true" : "false";
   const std::string noLoopUnroll = nopCodegen ? " no-loop-unroll=true" : "";
+  bool expandMeasurements =
+      physical.measurements == cudaq::config::MeasurementForm::expanded;
+  // Force expand measurements if `reset-before-reuse` is requested.
+  if (physical.resetBeforeReuse)
+    expandMeasurements = true;
+
   std::string pipeline =
       emulate ? "emul-jit-prep-pipeline{erase-noise=true allow-early-exit=" +
                     allowEarlyExit + noLoopUnroll + "}"
               : "hw-jit-prep-pipeline{allow-early-exit=" + allowEarlyExit +
                     noLoopUnroll + "}";
-  if (physical.measurements == cudaq::config::MeasurementForm::expanded)
+
+  if (expandMeasurements)
     pipeline += ",expand-measurements";
+
   pipeline += nopCodegen ? ",jit-deploy-pipeline{no-loop-unroll=true}"
                          : ",jit-deploy-pipeline";
   pipeline += ",jit-finalize-pipeline{lower-device-calls=";
   pipeline += nopCodegen && !emulate ? "false" : "true";
   pipeline += "}";
+
+  if (physical.resetBeforeReuse)
+    pipeline += ",func.func(combine-quantum-alloc,qubit-reset-before-reuse)";
 
   // Gate-basis legalization runs last: nothing after it may introduce gates
   // outside the basis.
