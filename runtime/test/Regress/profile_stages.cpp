@@ -27,6 +27,8 @@ class TestHandler : public LoweringHandler {
   const bool forceSupports;
 
 public:
+  mutable unsigned calls = 0;
+
   TestHandler(bool supported_ = true, bool forceSupports_ = false)
       : supported(supported_), forceSupports(forceSupports_) {}
 
@@ -40,6 +42,7 @@ public:
   std::optional<std::string>
   getPipeline(const cudaq::config::Profile &input,
               const cudaq::config::Profile &output) const override {
+    ++calls;
     if (!supported)
       return std::nullopt;
     return "handler(" + profileKind(input) + "->" + profileKind(output) + ")";
@@ -126,10 +129,29 @@ void test_selected_failure_diagnostic() {
 // CHECK: FAILED: compile target stage 1: the selected lowering handler failed
 // CHECK: to construct a pipeline from unchecked to physical-quake
 
+// A target with zero stages results in an empty pipeline.
+void test_zero_stages() {
+  cudaq::CompileTarget target;
+  HandlerVector handlers;
+  handlers.push_back(std::make_unique<TestHandler>());
+  std::string diagnostic;
+  const auto pipeline = getPassPipeline(target, {}, handlers, diagnostic);
+  if (pipeline)
+    std::cout << "zero stages: pipeline=\"" << *pipeline << "\"\n";
+  else
+    std::cout << "got unexpected diagnostic: " << diagnostic << "\n";
+  std::cout << "zero stages handler calls: "
+            << static_cast<const TestHandler *>(handlers.front().get())->calls
+            << "\n";
+}
+// CHECK: zero stages: pipeline=""
+// CHECK: zero stages handler calls: 0
+
 int main() {
   test_custom_then_inferred();
   test_single_inferred();
   test_no_match_diagnostic();
   test_selected_failure_diagnostic();
+  test_zero_stages();
   return 0;
 }
