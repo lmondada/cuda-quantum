@@ -13,7 +13,7 @@
 // RUN: not cudaq-opt --verify-profile-physical-quake='basis=h' --split-input-file %s 2>&1 | FileCheck --check-prefix=BASIS %s
 // RUN: not cudaq-opt --verify-profile-physical-quake='basis=x' --split-input-file %s 2>&1 | FileCheck --check-prefix=ARITY %s
 // RUN: not cudaq-opt --verify-profile-physical-quake='basis=x(n)' --split-input-file %s 2>&1 | FileCheck --check-prefix=XN %s
-// RUN: not cudaq-opt --verify-profile-physical-quake='reset-before-reuse=true' --split-input-file %s 2>&1 | FileCheck --check-prefix=RESET %s
+// RUN: cudaq-opt --verify-profile-physical-quake='reset-before-reuse=true' --split-input-file %s 2>/dev/null | FileCheck --check-prefix=RESET %s
 // RUN: cudaq-opt --verify-profile-physical-quake='measurements=expanded' --split-input-file %s 2>/dev/null | FileCheck --check-prefix=EXPOK %s
 // RUN: not cudaq-opt --verify-profile-physical-quake='measurements=expanded' --split-input-file %s 2>&1 1>/dev/null | FileCheck --check-prefix=EXPERR %s
 // RUN: not cudaq-opt --verify-profile-physical-quake='measurements=bogus' --split-input-file %s 2>&1 | FileCheck --check-prefix=BADOPT %s
@@ -28,6 +28,7 @@
 // FULLERR: error: 'cc.call_indirect_callable' op cannot verify: called function body is not available
 // FULLERR: error: 'cc.call_callable' op cannot verify: called function body is not available
 // FULLERR: error: 'func.call_indirect' op cannot verify: called function body is not available
+// RESET-LABEL: func.func @in_basis()
 // CHECK-LABEL: func.func @in_basis()
 // FULLIR: func.func @in_basis()
 func.func @in_basis() attributes {"cudaq-entrypoint"} {
@@ -204,7 +205,6 @@ func.func @cable_form(%cb: !quake.cable<2>) {
   return
 }
 
-// RESET: error: cannot verify reset-before-reuse: reset checking is not implemented yet
 // BADOPT: error: invalid value 'bogus' for option 'measurements' (expected 'any' or 'expanded')
 
 // -----
