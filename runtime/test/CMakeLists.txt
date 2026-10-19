@@ -90,6 +90,23 @@ target_link_libraries(physical_quake_pipeline PRIVATE CUDAQTargetConfig cudaq-lo
 set_target_properties(physical_quake_pipeline PROPERTIES
                       RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
+# profile_providers checks that the pipelines planned from the actual IonQ
+# and Fermioniq catalog entries (through the production lowering handlers)
+# are exactly the expected inferred lowerings.
+add_executable(profile_providers Regress/profile_providers.cpp
+               ${CMAKE_SOURCE_DIR}/runtime/internal/compiler/JITTargetPipeline.cpp
+               ${CMAKE_SOURCE_DIR}/runtime/internal/compiler/LoweringHandler.cpp
+               ${CMAKE_SOURCE_DIR}/runtime/internal/compiler/PhysicalQuakeHandler.cpp)
+target_include_directories(profile_providers PRIVATE
+                           ${CMAKE_SOURCE_DIR}/runtime/internal/compiler/include
+                           ${CMAKE_SOURCE_DIR}/runtime
+                           ${CMAKE_SOURCE_DIR}/runtime/include
+                           ${CMAKE_SOURCE_DIR}/runtime/cudaq
+                           ${CMAKE_SOURCE_DIR}/cudaq/include)
+target_link_libraries(profile_providers PRIVATE CUDAQTargetCatalog cudaq-logger)
+set_target_properties(profile_providers PROPERTIES
+                      RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+
 # lit-based regression testing over the hybrid tests above. Each is a
 # self-contained executable invoked directly by its own embedded RUN line
 # (see add_cudaq_hybrid_test). This gives the runtime subsystem its own
@@ -119,6 +136,7 @@ if (CUDAQ_BUILD_TESTS AND NOT CUDAQ_DISABLE_CPP_FRONTEND)
     cudaq-opt
     physical_quake_pipeline
     profile_handlers
+    profile_providers
     profile_stages
     resource_count_phase
     resource_count_qubit_indices
