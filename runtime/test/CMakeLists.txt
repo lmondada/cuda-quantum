@@ -47,10 +47,13 @@ add_cudaq_hybrid_test(resource_count_wireset)
 
 # profile_handlers exercises pure C++ selection logic; no MLIR/runtime closure.
 add_executable(profile_handlers Regress/profile_handlers.cpp
-               ${CMAKE_SOURCE_DIR}/runtime/internal/compiler/LoweringHandler.cpp)
+               ${CMAKE_SOURCE_DIR}/runtime/internal/compiler/LoweringHandler.cpp
+               ${CMAKE_SOURCE_DIR}/runtime/internal/compiler/PhysicalQuakeHandler.cpp)
 target_include_directories(profile_handlers PRIVATE
                            ${CMAKE_SOURCE_DIR}/runtime/internal/compiler/include
+                           ${CMAKE_SOURCE_DIR}/runtime/include
                            ${CMAKE_SOURCE_DIR}/cudaq/include)
+target_link_libraries(profile_handlers PRIVATE cudaq-logger)
 set_target_properties(profile_handlers PROPERTIES
                       RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
@@ -58,7 +61,8 @@ set_target_properties(profile_handlers PROPERTIES
 # closure.
 add_executable(profile_stages Regress/profile_stages.cpp
                ${CMAKE_SOURCE_DIR}/runtime/internal/compiler/JITTargetPipeline.cpp
-               ${CMAKE_SOURCE_DIR}/runtime/internal/compiler/LoweringHandler.cpp)
+               ${CMAKE_SOURCE_DIR}/runtime/internal/compiler/LoweringHandler.cpp
+               ${CMAKE_SOURCE_DIR}/runtime/internal/compiler/PhysicalQuakeHandler.cpp)
 target_include_directories(profile_stages PRIVATE
                            ${CMAKE_SOURCE_DIR}/runtime/internal/compiler/include
                            ${CMAKE_SOURCE_DIR}/runtime
@@ -67,6 +71,23 @@ target_include_directories(profile_stages PRIVATE
                            ${CMAKE_SOURCE_DIR}/cudaq/include)
 target_link_libraries(profile_stages PRIVATE CUDAQTargetConfig cudaq-logger)
 set_target_properties(profile_stages PROPERTIES
+                      RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+
+# physical_quake_pipeline exercises the built-in physical-quake lowering
+# handler: planned inferred pipelines plus actual lowered IR produced by
+# running the generated pipelines with cudaq-opt; no MLIR/runtime closure.
+add_executable(physical_quake_pipeline Regress/physical_quake_pipeline.cpp
+               ${CMAKE_SOURCE_DIR}/runtime/internal/compiler/JITTargetPipeline.cpp
+               ${CMAKE_SOURCE_DIR}/runtime/internal/compiler/LoweringHandler.cpp
+               ${CMAKE_SOURCE_DIR}/runtime/internal/compiler/PhysicalQuakeHandler.cpp)
+target_include_directories(physical_quake_pipeline PRIVATE
+                           ${CMAKE_SOURCE_DIR}/runtime/internal/compiler/include
+                           ${CMAKE_SOURCE_DIR}/runtime
+                           ${CMAKE_SOURCE_DIR}/runtime/include
+                           ${CMAKE_SOURCE_DIR}/runtime/cudaq
+                           ${CMAKE_SOURCE_DIR}/cudaq/include)
+target_link_libraries(physical_quake_pipeline PRIVATE CUDAQTargetConfig cudaq-logger)
+set_target_properties(physical_quake_pipeline PROPERTIES
                       RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 # lit-based regression testing over the hybrid tests above. Each is a
@@ -95,6 +116,8 @@ if (CUDAQ_BUILD_TESTS AND NOT CUDAQ_DISABLE_CPP_FRONTEND)
     argument_conversion
     compile_target
     compile_target_conditional_feedback_crash
+    cudaq-opt
+    physical_quake_pipeline
     profile_handlers
     profile_stages
     resource_count_phase

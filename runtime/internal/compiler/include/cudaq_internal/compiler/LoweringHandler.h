@@ -49,6 +49,14 @@ const LoweringHandler *selectLoweringHandler(
     const cudaq::config::Profile &input, const cudaq::config::Profile &output);
 
 /// The compiler's built-in lowering handlers, in selection order.
-std::vector<std::unique_ptr<LoweringHandler>> makeBuiltinLoweringHandlers();
+///
+/// \p emulate and \p emissionFormat are the compiler settings handlers
+/// capture for common pipeline preparation.
+std::vector<std::unique_ptr<LoweringHandler>>
+makeBuiltinLoweringHandlers(bool emulate, std::string emissionFormat);
+
+/// The built-in generic handler lowering to the physical-quake profile.
+std::unique_ptr<LoweringHandler>
+makePhysicalQuakeHandler(bool emulate, std::string emissionFormat);
 
 } // namespace cudaq_internal::compiler
