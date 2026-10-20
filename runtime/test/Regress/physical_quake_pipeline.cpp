@@ -93,6 +93,22 @@ module {
 }
 )MLIR";
 
+// A kernel allocating inside a constant conditional. Test for leading
+// canonicalize pass flattening the conditional.
+static const char *conditionalAllocKernel = R"MLIR(
+module {
+  func.func @__nvqpp__mlirgen__kernel() attributes {"cudaq-entrypoint", "cudaq-kernel", no_this} {
+    %true = arith.constant true
+    cc.if (%true) {
+      %q = quake.alloca !quake.ref
+      quake.h %q : (!quake.ref) -> ()
+      cc.continue
+    }
+    return
+  }
+}
+)MLIR";
+
 /// Pipelines planned so far, checked at the end for provider-named mappings.
 static std::vector<std::string> plannedPipelines;
 
@@ -154,7 +170,7 @@ void test_full_basis_any() {
             << std::endl;
   printLoweredIR(inputKernel, plannedPipelines.back());
 }
-// CHECK: case1: hw-jit-prep-pipeline{allow-early-exit=true},
+// CHECK: case1: canonicalize,hw-jit-prep-pipeline{allow-early-exit=true},
 // CHECK-SAME: jit-deploy-pipeline,jit-finalize-pipeline{lower-device-calls
 // CHECK-SAME: =true},basis-conversion{basis=h,s,t,rx,ry,rz,x,y,z,x(1)}
 // CHECK: quake.x [{{.*}}] {{.*}} : (!quake.ref, !quake.ref) -> ()
@@ -172,9 +188,9 @@ void test_full_basis_expanded() {
             << std::endl;
   printLoweredIR(inputKernel, plannedPipelines.back());
 }
-// CHECK: case2: hw-jit-prep-pipeline{allow-early-exit=false},expand-
-// CHECK-SAME: measurements,jit-deploy-pipeline,jit-finalize-pipeline{lower-
-// CHECK-SAME: device-calls=true},basis-conversion
+// CHECK: case2: canonicalize,hw-jit-prep-pipeline{allow-early-exit
+// CHECK-SAME: =false},expand-measurements,jit-deploy-pipeline,jit-finalize-
+// CHECK-SAME: pipeline{lower-device-calls=true},basis-conversion
 // CHECK-SAME: {basis=h,s,t,rx,ry,rz,x,y,z,x(1)}
 // CHECK-NOT: quake.mz {{.*}} : (!quake.veq<2>) -> !cc.sequence<!quake.measure>
 // CHECK: quake.mz {{.*}} : (!quake.ref) -> !quake.measure
@@ -192,9 +208,10 @@ void test_restricted_basis() {
             << std::endl;
   printLoweredIR(inputKernel, plannedPipelines.back());
 }
-// CHECK: case3: hw-jit-prep-pipeline{allow-early-exit=false},expand-
-// CHECK-SAME: measurements,jit-deploy-pipeline,jit-finalize-pipeline{lower-
-// CHECK-SAME: device-calls=true},basis-conversion{basis=h,t,z(1)}
+// CHECK: case3: canonicalize,hw-jit-prep-pipeline{allow-early-exit
+// CHECK-SAME: =false},expand-measurements,jit-deploy-pipeline,jit-finalize-
+// CHECK-SAME: pipeline{lower-device-calls=true},basis-conversion
+// CHECK-SAME: {basis=h,t,z(1)}
 // CHECK-NOT: quake.x
 // CHECK: quake.z [{{.*}}] {{.*}} : (!quake.ref, !quake.ref) -> ()
 // CHECK-NOT: cudaq-opt pipeline failed
@@ -213,10 +230,10 @@ void test_unconstrained_basis() {
             << std::endl;
   printLoweredIR(inputKernel, plannedPipelines.back());
 }
-// CHECK: case4: emul-jit-prep-pipeline{erase-noise=true allow-early-exit
-// CHECK-SAME: =false no-loop-unroll=true},expand-measurements,jit-deploy-
-// CHECK-SAME: pipeline{no-loop-unroll=true},jit-finalize-pipeline{lower-
-// CHECK-SAME: device-calls=true}
+// CHECK: case4: canonicalize,emul-jit-prep-pipeline{erase-noise=true
+// CHECK-SAME: allow-early-exit=false no-loop-unroll=true},expand-measurements,
+// CHECK-SAME: jit-deploy-pipeline{no-loop-unroll=true},jit-finalize-pipeline
+// CHECK-SAME: {lower-device-calls=true}
 // CHECK-NOT: basis-conversion
 // CHECK: quake.x [{{.*}}] {{.*}} : (!quake.ref, !quake.ref) -> ()
 // CHECK: cc.loop while
@@ -243,10 +260,10 @@ void test_physical_to_physical() {
   std::cout << "case5: " << planPipeline(target, {}) << std::endl;
   printLoweredIR(inputKernel, plannedPipelines.back());
 }
-// CHECK: case5: canonicalize,hw-jit-prep-pipeline{allow-early-exit
-// CHECK-SAME: =false},expand-measurements,jit-deploy-pipeline,jit-finalize-
-// CHECK-SAME: pipeline{lower-device-calls=true},basis-conversion
-// CHECK-SAME: {basis=h,t,z(1)}
+// CHECK: case5: canonicalize,canonicalize,hw-jit-prep-pipeline{allow-
+// CHECK-SAME: early-exit=false},expand-measurements,jit-deploy-pipeline,
+// CHECK-SAME: jit-finalize-pipeline{lower-device-calls=true},basis-
+// CHECK-SAME: conversion{basis=h,t,z(1)}
 // CHECK: quake.z [{{.*}}] {{.*}} : (!quake.ref, !quake.ref) -> ()
 // CHECK-NOT: cudaq-opt pipeline failed
 
@@ -259,10 +276,11 @@ void test_reset_lowering() {
   std::cout << "case6: " << pipeline << std::endl;
   printLoweredIR(reuseKernel, pipeline);
 }
-// CHECK: case6: hw-jit-prep-pipeline{allow-early-exit=false},expand-
-// CHECK-SAME: measurements,jit-deploy-pipeline,jit-finalize-pipeline{lower-
-// CHECK-SAME: device-calls=true},func.func(combine-quantum-alloc,qubit-reset-
-// CHECK-SAME: before-reuse),basis-conversion{basis=h,s,t,rx,ry,rz,x,y,z,x(1)}
+// CHECK: case6: canonicalize,hw-jit-prep-pipeline{allow-early-exit
+// CHECK-SAME: =false},expand-measurements,jit-deploy-pipeline,jit-finalize-
+// CHECK-SAME: pipeline{lower-device-calls=true},func.func(combine-quantum-
+// CHECK-SAME: alloc,qubit-reset-before-reuse),basis-conversion
+// CHECK-SAME: {basis=h,s,t,rx,ry,rz,x,y,z,x(1)}
 // CHECK: quake.alloca !quake.veq<4>
 // CHECK: %[[M0:.*]] = quake.mz %[[QA:.*]] : (!quake.ref) -> !quake.measure
 // CHECK-NEXT: quake.reset %[[QA]] : (!quake.ref) -> ()
@@ -293,10 +311,11 @@ void test_reset_no_x_basis() {
   std::cout << "case7: " << pipeline << std::endl;
   printLoweredIR(reuseKernel, pipeline);
 }
-// CHECK: case7: hw-jit-prep-pipeline{allow-early-exit=false},expand-
-// CHECK-SAME: measurements,jit-deploy-pipeline,jit-finalize-pipeline{lower-
-// CHECK-SAME: device-calls=true},func.func(combine-quantum-alloc,qubit-reset-
-// CHECK-SAME: before-reuse),basis-conversion{basis=h,t,phased_rx}
+// CHECK: case7: canonicalize,hw-jit-prep-pipeline{allow-early-exit
+// CHECK-SAME: =false},expand-measurements,jit-deploy-pipeline,jit-finalize-
+// CHECK-SAME: pipeline{lower-device-calls=true},func.func(combine-quantum-
+// CHECK-SAME: alloc,qubit-reset-before-reuse),basis-conversion
+// CHECK-SAME: {basis=h,t,phased_rx}
 // CHECK: quake.reset {{.*}} : (!quake.ref) -> ()
 // CHECK: quake.phased_rx
 // CHECK-NOT: quake.x
@@ -313,10 +332,11 @@ void test_reset_any_veq_reuse() {
   std::cout << "case8: " << pipeline << std::endl;
   printLoweredIR(veqReuseKernel, pipeline);
 }
-// CHECK: case8: hw-jit-prep-pipeline{allow-early-exit=false},expand-
-// CHECK-SAME: measurements,jit-deploy-pipeline,jit-finalize-pipeline{lower-
-// CHECK-SAME: device-calls=true},func.func(combine-quantum-alloc,qubit-reset-
-// CHECK-SAME: before-reuse),basis-conversion{basis=h,s,t,rx,ry,rz,x,y,z,x(1)}
+// CHECK: case8: canonicalize,hw-jit-prep-pipeline{allow-early-exit
+// CHECK-SAME: =false},expand-measurements,jit-deploy-pipeline,jit-finalize-
+// CHECK-SAME: pipeline{lower-device-calls=true},func.func(combine-quantum-
+// CHECK-SAME: alloc,qubit-reset-before-reuse),basis-conversion
+// CHECK-SAME: {basis=h,s,t,rx,ry,rz,x,y,z,x(1)}
 // CHECK-NOT: quake.mz {{.*}} !cc.sequence<!quake.measure>
 // CHECK: %[[M0:.*]] = quake.mz %[[R0:.*]] : (!quake.ref) -> !quake.measure
 // CHECK-NEXT: quake.reset %[[R0]] : (!quake.ref) -> ()
@@ -326,6 +346,24 @@ void test_reset_any_veq_reuse() {
 // CHECK-NEXT: }
 // CHECK: quake.h %[[R0]] : (!quake.ref) -> ()
 // CHECK-NOT: quake.reset
+// CHECK: quake.dealloc
+// CHECK-NOT: cudaq-opt pipeline failed
+
+// The inferred pipeline's leading canonicalize is what makes prep's
+// implicit-output/dealloc bookkeeping reach a conditionally allocated qubit:
+// it flattens the constant cc.if first, so the allocation is top-level when
+// the bookkeeping passes (which run before prep's own canonicalizer) look.
+void test_conditional_alloc_bookkeeping() {
+  cudaq::config::PhysicalQuakeProfile profile;
+  std::string pipeline = planPipeline(physicalTarget(profile, "qir-base"), {});
+  std::cout << "case9: " << pipeline << std::endl;
+  printLoweredIR(conditionalAllocKernel, pipeline);
+}
+// CHECK: case9: canonicalize,hw-jit-prep-pipeline{allow-early-exit=false},
+// CHECK-SAME: jit-deploy-pipeline,jit-finalize-pipeline{lower-device-calls
+// CHECK-SAME: =true}
+// CHECK: quake.alloca !quake.ref
+// CHECK: quake.evince
 // CHECK: quake.dealloc
 // CHECK-NOT: cudaq-opt pipeline failed
 
@@ -339,9 +377,9 @@ void test_no_provider_mappings() {
         std::cout << "unexpected provider mapping in: " << pipeline << "\n";
         return;
       }
-  std::cout << "case9: no provider-named mappings\n";
+  std::cout << "case10: no provider-named mappings\n";
 }
-// CHECK: case9: no provider-named mappings
+// CHECK: case10: no provider-named mappings
 
 int main() {
   test_full_basis_any();
@@ -352,6 +390,7 @@ int main() {
   test_reset_lowering();
   test_reset_no_x_basis();
   test_reset_any_veq_reuse();
+  test_conditional_alloc_bookkeeping();
   test_no_provider_mappings();
   return 0;
 }

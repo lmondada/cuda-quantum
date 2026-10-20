@@ -24,17 +24,21 @@
 /// The expected inferred pipelines. IonQ's measurements stay `any`
 /// (no expand-measurements); Fermioniq requires the expanded form;
 /// Quantinuum expands measurements, resets qubits before reuse, and keeps
-/// the early-exit path of its adaptive-QIR emission enabled.
+/// the early-exit path of its adaptive-QIR emission enabled. Each opens with
+/// the leading canonicalize, as the custom-pipeline lowering path does.
 static const char *expectedIonqPipeline =
+    "canonicalize,"
     "hw-jit-prep-pipeline{allow-early-exit=false},"
     "jit-deploy-pipeline,jit-finalize-pipeline{lower-device-calls=true},"
     "basis-conversion{basis=h,s,t,rx,ry,rz,x,y,z,x(1)}";
 static const char *expectedFermioniqPipeline =
+    "canonicalize,"
     "hw-jit-prep-pipeline{allow-early-exit=false},"
     "expand-measurements,jit-deploy-pipeline,"
     "jit-finalize-pipeline{lower-device-calls=true},"
     "basis-conversion{basis=h,s,t,rx,ry,rz,x,y,z,x(1)}";
 static const char *expectedQuantinuumPipeline =
+    "canonicalize,"
     "hw-jit-prep-pipeline{allow-early-exit=true},"
     "expand-measurements,jit-deploy-pipeline,"
     "jit-finalize-pipeline{lower-device-calls=true},"

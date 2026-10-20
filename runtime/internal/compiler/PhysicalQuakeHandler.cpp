@@ -65,7 +65,8 @@ PhysicalQuakeHandler::getPipeline(const cudaq::config::Profile &input,
   if (physical.resetBeforeReuse)
     expandMeasurements = true;
 
-  std::string pipeline =
+  std::string pipeline = "canonicalize,";
+  pipeline +=
       emulate ? "emul-jit-prep-pipeline{erase-noise=true allow-early-exit=" +
                     allowEarlyExit + noLoopUnroll + "}"
               : "hw-jit-prep-pipeline{allow-early-exit=" + allowEarlyExit +
