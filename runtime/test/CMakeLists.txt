@@ -90,9 +90,9 @@ target_link_libraries(physical_quake_pipeline PRIVATE CUDAQTargetConfig cudaq-lo
 set_target_properties(physical_quake_pipeline PROPERTIES
                       RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-# profile_providers checks that the pipelines planned from the actual IonQ
-# and Fermioniq catalog entries (through the production lowering handlers)
-# are exactly the expected inferred lowerings.
+# profile_providers checks that the pipelines planned from the actual IonQ,
+# Fermioniq, and Quantinuum catalog entries (through the production lowering
+# handlers) are exactly the expected inferred lowerings.
 add_executable(profile_providers Regress/profile_providers.cpp
                ${CMAKE_SOURCE_DIR}/runtime/internal/compiler/JITTargetPipeline.cpp
                ${CMAKE_SOURCE_DIR}/runtime/internal/compiler/LoweringHandler.cpp

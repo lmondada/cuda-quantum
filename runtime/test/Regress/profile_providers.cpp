@@ -12,6 +12,7 @@
 
 // CHECK: ionq: match
 // CHECK: fermioniq: match
+// CHECK: quantinuum: match
 
 #include "cudaq_internal/compiler/Compiler.h"
 #include "cudaq_internal/compiler/LoweringHandler.h"
@@ -21,7 +22,9 @@
 #include <string>
 
 /// The expected inferred pipelines. IonQ's measurements stay `any`
-/// (no expand-measurements); Fermioniq requires the expanded form.
+/// (no expand-measurements); Fermioniq requires the expanded form;
+/// Quantinuum expands measurements, resets qubits before reuse, and keeps
+/// the early-exit path of its adaptive-QIR emission enabled.
 static const char *expectedIonqPipeline =
     "hw-jit-prep-pipeline{allow-early-exit=false},"
     "jit-deploy-pipeline,jit-finalize-pipeline{lower-device-calls=true},"
@@ -30,6 +33,12 @@ static const char *expectedFermioniqPipeline =
     "hw-jit-prep-pipeline{allow-early-exit=false},"
     "expand-measurements,jit-deploy-pipeline,"
     "jit-finalize-pipeline{lower-device-calls=true},"
+    "basis-conversion{basis=h,s,t,rx,ry,rz,x,y,z,x(1)}";
+static const char *expectedQuantinuumPipeline =
+    "hw-jit-prep-pipeline{allow-early-exit=true},"
+    "expand-measurements,jit-deploy-pipeline,"
+    "jit-finalize-pipeline{lower-device-calls=true},"
+    "func.func(combine-quantum-alloc,qubit-reset-before-reuse),"
     "basis-conversion{basis=h,s,t,rx,ry,rz,x,y,z,x(1)}";
 
 /// Plan the JIT pipeline of the actual catalog entry through the built-in
@@ -61,5 +70,6 @@ int main() {
   cudaq::config::TargetCatalog catalog;
   checkTarget(catalog, "ionq", expectedIonqPipeline);
   checkTarget(catalog, "fermioniq", expectedFermioniqPipeline);
+  checkTarget(catalog, "quantinuum", expectedQuantinuumPipeline);
   return 0;
 }
